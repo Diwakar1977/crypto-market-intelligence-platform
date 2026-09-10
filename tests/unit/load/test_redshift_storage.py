@@ -1,10 +1,25 @@
 from __future__ import annotations
 
+from typing import TypedDict
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.load.redshift_storage import RedshiftStorage
+
+# =====================================================================
+# TYPED CONFIGURATION
+# =====================================================================
+
+
+class RedshiftStorageKwargs(TypedDict):
+    """Typed constructor arguments for RedshiftStorage."""
+
+    host: str
+    port: int
+    database: str
+    aws_region: str
+    workgroup: str
 
 
 # =====================================================================
@@ -15,9 +30,8 @@ from src.load.redshift_storage import RedshiftStorage
 @pytest.fixture
 def redshift_storage() -> RedshiftStorage:
     """Create RedshiftStorage with mocked AWS client."""
-    with patch(
-        "src.load.redshift_storage.boto3.client"
-    ) as mock_boto3_client:
+
+    with patch("src.load.redshift_storage.boto3.client") as mock_boto3_client:
 
         mock_boto3_client.return_value = MagicMock()
 
@@ -35,7 +49,9 @@ def redshift_storage() -> RedshiftStorage:
 @pytest.fixture
 def mock_redshift_connection() -> MagicMock:
     """Create a mocked Redshift connection."""
+
     connection = MagicMock()
+
     return connection
 
 
@@ -47,11 +63,10 @@ def mock_redshift_connection() -> MagicMock:
 def test_init_success() -> None:
     """Initialize RedshiftStorage successfully."""
 
-    with patch(
-        "src.load.redshift_storage.boto3.client"
-    ) as mock_boto3_client:
+    with patch("src.load.redshift_storage.boto3.client") as mock_boto3_client:
 
         mock_client = MagicMock()
+
         mock_boto3_client.return_value = mock_client
 
         storage = RedshiftStorage(
@@ -87,7 +102,7 @@ def test_init_rejects_empty_string(
 ) -> None:
     """Reject empty required string configuration."""
 
-    kwargs = {
+    base_kwargs: RedshiftStorageKwargs = {
         "host": "redshift.example.com",
         "port": 5439,
         "database": "dev",
@@ -95,32 +110,36 @@ def test_init_rejects_empty_string(
         "workgroup": "crypto-workgroup",
     }
 
-    kwargs[field] = value
+    if field == "host":
+        base_kwargs["host"] = value
 
-    with patch(
-        "src.load.redshift_storage.boto3.client"
-    ):
-        with pytest.raises(ValueError):
-            RedshiftStorage(**kwargs)
+    elif field == "database":
+        base_kwargs["database"] = value
+
+    elif field == "aws_region":
+        base_kwargs["aws_region"] = value
+
+    elif field == "workgroup":
+        base_kwargs["workgroup"] = value
+
+    with patch("src.load.redshift_storage.boto3.client"), pytest.raises(ValueError):
+        RedshiftStorage(**base_kwargs)
 
 
 def test_init_rejects_invalid_port() -> None:
     """Reject zero or negative Redshift port."""
 
-    with patch(
-        "src.load.redshift_storage.boto3.client"
+    with patch("src.load.redshift_storage.boto3.client"), pytest.raises(
+        ValueError,
+        match="port must be greater than zero.",
     ):
-        with pytest.raises(
-            ValueError,
-            match="port must be greater than zero.",
-        ):
-            RedshiftStorage(
-                host="redshift.example.com",
-                port=0,
-                database="dev",
-                aws_region="ap-south-1",
-                workgroup="crypto-workgroup",
-            )
+        RedshiftStorage(
+            host="redshift.example.com",
+            port=0,
+            database="dev",
+            aws_region="ap-south-1",
+            workgroup="crypto-workgroup",
+        )
 
 
 # =====================================================================
@@ -154,8 +173,8 @@ def test_get_iam_credentials_failure(
 ) -> None:
     """Raise exception when IAM credentials cannot be obtained."""
 
-    redshift_storage._redshift_client.get_credentials.side_effect = (
-        RuntimeError("AWS credentials error")
+    redshift_storage._redshift_client.get_credentials.side_effect = RuntimeError(
+        "AWS credentials error"
     )
 
     with pytest.raises(
@@ -178,6 +197,7 @@ def test_connect_success(
     """Create Redshift IAM connection successfully."""
 
     mock_connection = MagicMock()
+
     mock_connect.return_value = mock_connection
 
     redshift_storage._redshift_client.get_credentials.return_value = {
@@ -213,6 +233,7 @@ def test_connect_reuses_existing_connection(
     redshift_storage.connect()
 
     assert redshift_storage._connection is existing_connection
+
     mock_connect.assert_not_called()
 
 
@@ -223,9 +244,7 @@ def test_connect_failure_resets_connection(
 ) -> None:
     """Reset connection when connection creation fails."""
 
-    mock_connect.side_effect = RuntimeError(
-        "Connection failed"
-    )
+    mock_connect.side_effect = RuntimeError("Connection failed")
 
     redshift_storage._redshift_client.get_credentials.return_value = {
         "dbUser": "iam_user",
@@ -254,6 +273,7 @@ def test_get_connection_creates_connection(
     """get_connection creates a connection when needed."""
 
     mock_connection = MagicMock()
+
     mock_connect.return_value = mock_connection
 
     redshift_storage._redshift_client.get_credentials.return_value = {
@@ -291,11 +311,13 @@ def test_reset_connection(
     """Close and reset current connection."""
 
     connection = MagicMock()
+
     redshift_storage._connection = connection
 
     redshift_storage._reset_connection()
 
     connection.close.assert_called_once()
+
     assert redshift_storage._connection is None
 
 
@@ -317,9 +339,8 @@ def test_reset_connection_handles_close_error(
     """Reset connection even when close raises an exception."""
 
     connection = MagicMock()
-    connection.close.side_effect = RuntimeError(
-        "close failed"
-    )
+
+    connection.close.side_effect = RuntimeError("close failed")
 
     redshift_storage._connection = connection
 
@@ -342,6 +363,7 @@ def test_execute_success(
     cursor = MagicMock()
 
     connection.cursor.return_value = cursor
+
     redshift_storage._connection = connection
 
     sql = "CREATE TABLE test_table (id INTEGER)"
@@ -354,6 +376,7 @@ def test_execute_success(
     )
 
     connection.commit.assert_called_once()
+
     cursor.close.assert_called_once()
 
 
@@ -366,6 +389,7 @@ def test_execute_with_parameters(
     cursor = MagicMock()
 
     connection.cursor.return_value = cursor
+
     redshift_storage._connection = connection
 
     sql = "INSERT INTO test_table (id) VALUES (%s)"
@@ -410,9 +434,7 @@ def test_execute_retries_after_failure(
     first_connection.cursor.return_value = first_cursor
     second_connection.cursor.return_value = second_cursor
 
-    first_cursor.execute.side_effect = RuntimeError(
-        "Broken pipe"
-    )
+    first_cursor.execute.side_effect = RuntimeError("Broken pipe")
 
     redshift_storage._connection = first_connection
 
@@ -423,29 +445,30 @@ def test_execute_retries_after_failure(
 
     def get_connection_side_effect() -> MagicMock:
         connection = connections.pop(0)
+
         redshift_storage._connection = connection
+
         return connection
 
     with patch.object(
         redshift_storage,
         "get_connection",
         side_effect=get_connection_side_effect,
-    ):
-        with patch.object(
+    ), patch.object(
+        redshift_storage,
+        "_reset_connection",
+        side_effect=lambda: setattr(
             redshift_storage,
-            "_reset_connection",
-            side_effect=lambda: setattr(
-                redshift_storage,
-                "_connection",
-                None,
-            ),
-        ):
-            redshift_storage.execute(
-                "SELECT 1"
-            )
+            "_connection",
+            None,
+        ),
+    ):
+        redshift_storage.execute("SELECT 1")
 
     first_connection.rollback.assert_called_once()
+
     second_connection.commit.assert_called_once()
+
     second_cursor.execute.assert_called_once_with(
         "SELECT 1",
         None,
@@ -466,6 +489,7 @@ def test_execute_many_success(
     cursor = MagicMock()
 
     connection.cursor.return_value = cursor
+
     redshift_storage._connection = connection
 
     sql = "INSERT INTO test_table (id) VALUES (%s)"
@@ -487,6 +511,7 @@ def test_execute_many_success(
     )
 
     connection.commit.assert_called_once()
+
     cursor.close.assert_called_once()
 
 
@@ -534,6 +559,7 @@ def test_fetch_one_returns_row(
     cursor = MagicMock()
 
     connection.cursor.return_value = cursor
+
     cursor.fetchone.return_value = (
         1,
         "bitcoin",
@@ -541,9 +567,7 @@ def test_fetch_one_returns_row(
 
     redshift_storage._connection = connection
 
-    result = redshift_storage.fetch_one(
-        "SELECT id, name FROM crypto_market"
-    )
+    result = redshift_storage.fetch_one("SELECT id, name FROM crypto_market")
 
     assert result == (
         1,
@@ -567,13 +591,12 @@ def test_fetch_one_returns_none(
     cursor = MagicMock()
 
     connection.cursor.return_value = cursor
+
     cursor.fetchone.return_value = None
 
     redshift_storage._connection = connection
 
-    result = redshift_storage.fetch_one(
-        "SELECT * FROM crypto_market"
-    )
+    result = redshift_storage.fetch_one("SELECT * FROM crypto_market")
 
     assert result is None
 
@@ -612,9 +635,7 @@ def test_fetch_all_returns_rows(
 
     redshift_storage._connection = connection
 
-    result = redshift_storage.fetch_all(
-        "SELECT id, name FROM crypto_market"
-    )
+    result = redshift_storage.fetch_all("SELECT id, name FROM crypto_market")
 
     assert result == [
         (1, "bitcoin"),
@@ -638,13 +659,12 @@ def test_fetch_all_returns_empty_list(
     cursor = MagicMock()
 
     connection.cursor.return_value = cursor
+
     cursor.fetchall.return_value = []
 
     redshift_storage._connection = connection
 
-    result = redshift_storage.fetch_all(
-        "SELECT * FROM crypto_market"
-    )
+    result = redshift_storage.fetch_all("SELECT * FROM crypto_market")
 
     assert result == []
 
@@ -672,6 +692,7 @@ def test_commit_success(
     """Commit current transaction."""
 
     connection = MagicMock()
+
     redshift_storage._connection = connection
 
     redshift_storage.commit()
@@ -697,9 +718,8 @@ def test_commit_failure(
     """Raise exception when commit fails."""
 
     connection = MagicMock()
-    connection.commit.side_effect = RuntimeError(
-        "commit failed"
-    )
+
+    connection.commit.side_effect = RuntimeError("commit failed")
 
     redshift_storage._connection = connection
 
@@ -721,6 +741,7 @@ def test_rollback_success(
     """Rollback current transaction."""
 
     connection = MagicMock()
+
     redshift_storage._connection = connection
 
     redshift_storage.rollback()
@@ -746,9 +767,8 @@ def test_rollback_failure(
     """Raise exception when rollback fails."""
 
     connection = MagicMock()
-    connection.rollback.side_effect = RuntimeError(
-        "rollback failed"
-    )
+
+    connection.rollback.side_effect = RuntimeError("rollback failed")
 
     redshift_storage._connection = connection
 
@@ -770,11 +790,13 @@ def test_close_success(
     """Close Redshift connection successfully."""
 
     connection = MagicMock()
+
     redshift_storage._connection = connection
 
     redshift_storage.close()
 
     connection.close.assert_called_once()
+
     assert redshift_storage._connection is None
 
 
@@ -796,9 +818,8 @@ def test_close_handles_exception(
     """Connection is reset even when close fails."""
 
     connection = MagicMock()
-    connection.close.side_effect = RuntimeError(
-        "close failed"
-    )
+
+    connection.close.side_effect = RuntimeError("close failed")
 
     redshift_storage._connection = connection
 
@@ -822,6 +843,7 @@ def test_context_manager_enter(
     result = redshift_storage.__enter__()
 
     mock_connect.assert_called_once()
+
     assert result is redshift_storage
 
 
@@ -849,14 +871,13 @@ def test_context_manager_usage(
     with patch.object(
         redshift_storage,
         "connect",
-    ) as mock_connect:
-        with patch.object(
-            redshift_storage,
-            "close",
-        ) as mock_close:
+    ) as mock_connect, patch.object(
+        redshift_storage,
+        "close",
+    ) as mock_close:
 
-            with redshift_storage as result:
-                assert result is redshift_storage
+        with redshift_storage as result:
+            assert result is redshift_storage
 
-            mock_connect.assert_called_once()
-            mock_close.assert_called_once()
+        mock_connect.assert_called_once()
+        mock_close.assert_called_once()

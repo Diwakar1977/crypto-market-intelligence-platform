@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pendulum
 from airflow.models.taskinstance import TaskInstance
+from airflow.sdk import Context
 
 from dags.callbacks.dag_callbacks import (
     _get_execution_date,
@@ -11,6 +12,10 @@ from dags.callbacks.dag_callbacks import (
     dag_failure_callback,
     dag_success_callback,
 )
+
+# ============================================================
+# TEST CONSTANTS
+# ============================================================
 
 
 EXECUTION_DATE = "2026-09-04T09:00:00+00:00"
@@ -22,6 +27,18 @@ FAILURE_SUBJECT = "[FAILED] crypto_etl_pipeline"
 FAILURE_MESSAGE = "Pipeline failed."
 
 
+# Airflow Context requires pendulum.DateTime for logical_date.
+LOGICAL_DATE = pendulum.datetime(
+    2026,
+    9,
+    4,
+    9,
+    0,
+    0,
+    tz="UTC",
+)
+
+
 # ============================================================
 # EXECUTION DATE
 # ============================================================
@@ -30,10 +47,8 @@ FAILURE_MESSAGE = "Pipeline failed."
 def test_get_execution_date_success() -> None:
     """Return logical date as ISO string."""
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
     }
 
     result = _get_execution_date(context)
@@ -44,7 +59,9 @@ def test_get_execution_date_success() -> None:
 def test_get_execution_date_missing() -> None:
     """Return Unknown when logical date is missing."""
 
-    result = _get_execution_date({})
+    context: Context = {}
+
+    result = _get_execution_date(context)
 
     assert result == "Unknown"
 
@@ -59,7 +76,7 @@ def test_get_task_instance_success() -> None:
 
     task_instance = object.__new__(TaskInstance)
 
-    context = {
+    context: Context = {
         "ti": task_instance,
     }
 
@@ -71,7 +88,9 @@ def test_get_task_instance_success() -> None:
 def test_get_task_instance_missing() -> None:
     """Return None when TaskInstance is missing."""
 
-    result = _get_task_instance({})
+    context: Context = {}
+
+    result = _get_task_instance(context)
 
     assert result is None
 
@@ -79,11 +98,11 @@ def test_get_task_instance_missing() -> None:
 def test_get_task_instance_invalid_object() -> None:
     """Return None when context contains an invalid object."""
 
-    result = _get_task_instance(
-        {
-            "ti": MagicMock(),
-        }
-    )
+    context: Context = {
+        "ti": MagicMock(),
+    }
+
+    result = _get_task_instance(context)
 
     assert result is None
 
@@ -105,8 +124,6 @@ def test_dag_success_callback(
 
     task_instance = MagicMock()
 
-    # execute_extract() returns a dictionary containing
-    # both s3_key and record_count.
     task_instance.xcom_pull.return_value = {
         "s3_key": (
             "raw_data/crypto_market/"
@@ -123,27 +140,22 @@ def test_dag_success_callback(
         SUCCESS_MESSAGE,
     )
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
     }
 
     dag_success_callback(context)
 
-    # Verify XCom was read from extract task.
     task_instance.xcom_pull.assert_called_once_with(
-        task_ids="extract"
+        task_ids="extract",
     )
 
-    # Verify email template received correct values.
     mock_email_template.pipeline_success.assert_called_once_with(
         pipeline_name="crypto_etl_pipeline",
         execution_date=EXECUTION_DATE,
         record_count=100,
     )
 
-    # Verify SNS notification.
     mock_sns.return_value.publish.assert_called_once_with(
         subject=SUCCESS_SUBJECT,
         message=SUCCESS_MESSAGE,
@@ -167,10 +179,8 @@ def test_dag_success_callback_without_task_instance(
         SUCCESS_MESSAGE,
     )
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
     }
 
     dag_success_callback(context)
@@ -208,10 +218,8 @@ def test_dag_success_callback_empty_xcom(
         SUCCESS_MESSAGE,
     )
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
     }
 
     dag_success_callback(context)
@@ -249,10 +257,8 @@ def test_dag_success_callback_invalid_xcom(
         SUCCESS_MESSAGE,
     )
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
     }
 
     dag_success_callback(context)
@@ -293,10 +299,8 @@ def test_dag_success_callback_invalid_record_count(
         SUCCESS_MESSAGE,
     )
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
     }
 
     dag_success_callback(context)
@@ -329,7 +333,8 @@ def test_dag_success_callback_notification_disabled(
         "dags.callbacks.dag_callbacks.NOTIFICATION_ON_SUCCESS",
         False,
     ):
-        dag_success_callback({})
+        context: Context = {}
+        dag_success_callback(context)
 
     mock_email_template.pipeline_success.assert_not_called()
 
@@ -353,17 +358,12 @@ def test_dag_success_callback_sns_failure(
         SUCCESS_MESSAGE,
     )
 
-    mock_sns.return_value.publish.side_effect = RuntimeError(
-        "SNS failed"
-    )
+    mock_sns.return_value.publish.side_effect = RuntimeError("SNS failed")
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
     }
 
-    # Callback should handle SNS failure internally.
     dag_success_callback(context)
 
     mock_sns.return_value.publish.assert_called_once_with(
@@ -396,10 +396,8 @@ def test_dag_failure_callback(
         FAILURE_MESSAGE,
     )
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
         "exception": RuntimeError("DAG failed"),
     }
 
@@ -434,10 +432,8 @@ def test_dag_failure_callback_without_exception(
         FAILURE_MESSAGE,
     )
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
     }
 
     dag_failure_callback(context)
@@ -466,7 +462,8 @@ def test_dag_failure_callback_notification_disabled(
         "dags.callbacks.dag_callbacks.NOTIFICATION_ON_FAILURE",
         False,
     ):
-        dag_failure_callback({})
+        context: Context = {}
+        dag_failure_callback(context)
 
     mock_email_template.pipeline_failure.assert_not_called()
 
@@ -490,18 +487,13 @@ def test_dag_failure_callback_sns_failure(
         FAILURE_MESSAGE,
     )
 
-    mock_sns.return_value.publish.side_effect = RuntimeError(
-        "SNS failed"
-    )
+    mock_sns.return_value.publish.side_effect = RuntimeError("SNS failed")
 
-    context = {
-        "logical_date": datetime.fromisoformat(
-            EXECUTION_DATE
-        ),
+    context: Context = {
+        "logical_date": LOGICAL_DATE,
         "exception": RuntimeError("DAG failed"),
     }
 
-    # Callback should handle SNS failure internally.
     dag_failure_callback(context)
 
     mock_sns.return_value.publish.assert_called_once_with(

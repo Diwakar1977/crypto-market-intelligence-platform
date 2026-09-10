@@ -8,7 +8,6 @@ from redshift_connector import Connection, Cursor
 
 from src.utils.logger import Logger
 
-
 logger = Logger.get_logger(
     "redshift_storage",
     "redshift_storage.log",
@@ -79,8 +78,7 @@ class RedshiftStorage:
         )
 
         logger.info(
-            "RedshiftStorage initialized. "
-            "workgroup=%s database=%s region=%s",
+            "RedshiftStorage initialized. " "workgroup=%s database=%s region=%s",
             self.workgroup,
             self.database,
             self.aws_region,
@@ -100,8 +98,7 @@ class RedshiftStorage:
 
         try:
             logger.info(
-                "Requesting temporary Redshift IAM credentials "
-                "for workgroup: %s",
+                "Requesting temporary Redshift IAM credentials " "for workgroup: %s",
                 self.workgroup,
             )
 
@@ -113,17 +110,12 @@ class RedshiftStorage:
             username = credentials["dbUser"]
             password = credentials["dbPassword"]
 
-            logger.info(
-                "Temporary Redshift IAM credentials "
-                "obtained successfully."
-            )
+            logger.info("Temporary Redshift IAM credentials " "obtained successfully.")
 
             return username, password
 
         except Exception:
-            logger.exception(
-                "Failed to obtain temporary Redshift IAM credentials."
-            )
+            logger.exception("Failed to obtain temporary Redshift IAM credentials.")
             raise
 
     # ------------------------------------------------------------------
@@ -160,16 +152,14 @@ class RedshiftStorage:
             )
 
             logger.info(
-                "Redshift Serverless IAM connection "
-                "established successfully."
+                "Redshift Serverless IAM connection " "established successfully."
             )
 
         except Exception:
             self._connection = None
 
             logger.exception(
-                "Failed to connect to Redshift Serverless "
-                "using IAM authentication."
+                "Failed to connect to Redshift Serverless " "using IAM authentication."
             )
             raise
 
@@ -184,9 +174,7 @@ class RedshiftStorage:
             self.connect()
 
         if self._connection is None:
-            raise RuntimeError(
-                "Redshift connection could not be established."
-            )
+            raise RuntimeError("Redshift connection could not be established.")
 
         return self._connection
 
@@ -201,9 +189,7 @@ class RedshiftStorage:
         if self._connection is None:
             return
 
-        logger.warning(
-            "Resetting Redshift connection."
-        )
+        logger.warning("Resetting Redshift connection.")
 
         try:
             self._connection.close()
@@ -234,9 +220,7 @@ class RedshiftStorage:
         """
 
         if not sql.strip():
-            raise ValueError(
-                "SQL statement cannot be empty."
-            )
+            raise ValueError("SQL statement cannot be empty.")
 
         last_exception: Exception | None = None
 
@@ -246,8 +230,7 @@ class RedshiftStorage:
 
             try:
                 logger.info(
-                    "Executing Redshift SQL statement "
-                    "(attempt %d/%d).",
+                    "Executing Redshift SQL statement " "(attempt %d/%d).",
                     attempt,
                     self.MAX_SQL_ATTEMPTS,
                 )
@@ -261,10 +244,7 @@ class RedshiftStorage:
 
                 connection.commit()
 
-                logger.info(
-                    "Redshift SQL statement "
-                    "executed successfully."
-                )
+                logger.info("Redshift SQL statement " "executed successfully.")
 
                 return
 
@@ -272,8 +252,7 @@ class RedshiftStorage:
                 last_exception = exc
 
                 logger.exception(
-                    "Redshift SQL execution failed "
-                    "(attempt %d/%d).",
+                    "Redshift SQL execution failed " "(attempt %d/%d).",
                     attempt,
                     self.MAX_SQL_ATTEMPTS,
                 )
@@ -309,9 +288,7 @@ class RedshiftStorage:
         if last_exception is not None:
             raise last_exception
 
-        raise RuntimeError(
-            "Redshift SQL execution failed."
-        )
+        raise RuntimeError("Redshift SQL execution failed.")
 
     # ------------------------------------------------------------------
     # Execute Many
@@ -334,14 +311,10 @@ class RedshiftStorage:
         """
 
         if not sql.strip():
-            raise ValueError(
-                "SQL statement cannot be empty."
-            )
+            raise ValueError("SQL statement cannot be empty.")
 
         if not parameters:
-            raise ValueError(
-                "SQL parameters cannot be empty."
-            )
+            raise ValueError("SQL parameters cannot be empty.")
 
         last_exception: Exception | None = None
 
@@ -351,8 +324,7 @@ class RedshiftStorage:
 
             try:
                 logger.info(
-                    "Executing batch Redshift SQL statement "
-                    "(attempt %d/%d).",
+                    "Executing batch Redshift SQL statement " "(attempt %d/%d).",
                     attempt,
                     self.MAX_SQL_ATTEMPTS,
                 )
@@ -366,10 +338,7 @@ class RedshiftStorage:
 
                 connection.commit()
 
-                logger.info(
-                    "Batch Redshift SQL execution "
-                    "completed successfully."
-                )
+                logger.info("Batch Redshift SQL execution " "completed successfully.")
 
                 return
 
@@ -377,8 +346,7 @@ class RedshiftStorage:
                 last_exception = exc
 
                 logger.exception(
-                    "Batch Redshift SQL execution failed "
-                    "(attempt %d/%d).",
+                    "Batch Redshift SQL execution failed " "(attempt %d/%d).",
                     attempt,
                     self.MAX_SQL_ATTEMPTS,
                 )
@@ -414,9 +382,7 @@ class RedshiftStorage:
         if last_exception is not None:
             raise last_exception
 
-        raise RuntimeError(
-            "Batch Redshift SQL execution failed."
-        )
+        raise RuntimeError("Batch Redshift SQL execution failed.")
 
     # ------------------------------------------------------------------
     # Fetch One
@@ -434,9 +400,7 @@ class RedshiftStorage:
         """
 
         if not sql.strip():
-            raise ValueError(
-                "SQL query cannot be empty."
-            )
+            raise ValueError("SQL query cannot be empty.")
 
         last_exception: Exception | None = None
 
@@ -446,8 +410,7 @@ class RedshiftStorage:
 
             try:
                 logger.info(
-                    "Executing Redshift SELECT query "
-                    "(attempt %d/%d).",
+                    "Executing Redshift SELECT query " "(attempt %d/%d).",
                     attempt,
                     self.MAX_SQL_ATTEMPTS,
                 )
@@ -461,23 +424,15 @@ class RedshiftStorage:
 
                 result = cursor.fetchone()
 
-                logger.info(
-                    "Redshift SELECT query "
-                    "completed successfully."
-                )
+                logger.info("Redshift SELECT query " "completed successfully.")
 
-                return (
-                    tuple(result)
-                    if result is not None
-                    else None
-                )
+                return tuple(result) if result is not None else None
 
             except Exception as exc:
                 last_exception = exc
 
                 logger.exception(
-                    "Redshift SELECT query failed "
-                    "(attempt %d/%d).",
+                    "Redshift SELECT query failed " "(attempt %d/%d).",
                     attempt,
                     self.MAX_SQL_ATTEMPTS,
                 )
@@ -499,9 +454,7 @@ class RedshiftStorage:
         if last_exception is not None:
             raise last_exception
 
-        raise RuntimeError(
-            "Redshift SELECT query failed."
-        )
+        raise RuntimeError("Redshift SELECT query failed.")
 
     # ------------------------------------------------------------------
     # Fetch All
@@ -519,9 +472,7 @@ class RedshiftStorage:
         """
 
         if not sql.strip():
-            raise ValueError(
-                "SQL query cannot be empty."
-            )
+            raise ValueError("SQL query cannot be empty.")
 
         last_exception: Exception | None = None
 
@@ -531,8 +482,7 @@ class RedshiftStorage:
 
             try:
                 logger.info(
-                    "Executing Redshift SELECT query "
-                    "(attempt %d/%d).",
+                    "Executing Redshift SELECT query " "(attempt %d/%d).",
                     attempt,
                     self.MAX_SQL_ATTEMPTS,
                 )
@@ -557,8 +507,7 @@ class RedshiftStorage:
                 last_exception = exc
 
                 logger.exception(
-                    "Redshift SELECT query failed "
-                    "(attempt %d/%d).",
+                    "Redshift SELECT query failed " "(attempt %d/%d).",
                     attempt,
                     self.MAX_SQL_ATTEMPTS,
                 )
@@ -580,9 +529,7 @@ class RedshiftStorage:
         if last_exception is not None:
             raise last_exception
 
-        raise RuntimeError(
-            "Redshift SELECT query failed."
-        )
+        raise RuntimeError("Redshift SELECT query failed.")
 
     # ------------------------------------------------------------------
     # Commit
@@ -592,22 +539,16 @@ class RedshiftStorage:
         """Commit the current Redshift transaction."""
 
         if self._connection is None:
-            logger.warning(
-                "Commit requested but no Redshift connection exists."
-            )
+            logger.warning("Commit requested but no Redshift connection exists.")
             return
 
         try:
             self._connection.commit()
 
-            logger.info(
-                "Redshift transaction committed successfully."
-            )
+            logger.info("Redshift transaction committed successfully.")
 
         except Exception:
-            logger.exception(
-                "Failed to commit Redshift transaction."
-            )
+            logger.exception("Failed to commit Redshift transaction.")
             raise
 
     # ------------------------------------------------------------------
@@ -618,22 +559,16 @@ class RedshiftStorage:
         """Roll back the current Redshift transaction."""
 
         if self._connection is None:
-            logger.warning(
-                "Rollback requested but no Redshift connection exists."
-            )
+            logger.warning("Rollback requested but no Redshift connection exists.")
             return
 
         try:
             self._connection.rollback()
 
-            logger.warning(
-                "Redshift transaction rolled back."
-            )
+            logger.warning("Redshift transaction rolled back.")
 
         except Exception:
-            logger.exception(
-                "Failed to roll back Redshift transaction."
-            )
+            logger.exception("Failed to roll back Redshift transaction.")
             raise
 
     # ------------------------------------------------------------------
@@ -649,14 +584,10 @@ class RedshiftStorage:
         try:
             self._connection.close()
 
-            logger.info(
-                "Redshift connection closed successfully."
-            )
+            logger.info("Redshift connection closed successfully.")
 
         except Exception:
-            logger.exception(
-                "Failed to close Redshift connection."
-            )
+            logger.exception("Failed to close Redshift connection.")
 
         finally:
             self._connection = None

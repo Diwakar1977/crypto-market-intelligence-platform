@@ -72,9 +72,7 @@ def test_load_schema(
     assert result["is_active"].dataType == BooleanType()
     assert result["last_updated"].dataType == TimestampType()
     assert result["roi"].dataType == StructType()
-    assert result["tags"].dataType == ArrayType(
-        StringType()
-    )
+    assert result["tags"].dataType == ArrayType(StringType())
 
 
 def test_load_schema_preserves_column_order(
@@ -183,10 +181,7 @@ def test_load_non_string_data_type(
 
     with pytest.raises(
         TypeError,
-        match=(
-            "Schema type for column 'price' "
-            "must be a string"
-        ),
+        match=("Schema type for column 'price' " "must be a string"),
     ):
         schema_loader.load(schema_path)
 
@@ -208,10 +203,7 @@ def test_load_unsupported_spark_type(
 
     with pytest.raises(
         ValueError,
-        match=(
-            "Unsupported Spark type "
-            "'DecimalType' for column 'price'"
-        ),
+        match=("Unsupported Spark type " "'DecimalType' for column 'price'"),
     ):
         schema_loader.load(schema_path)
 

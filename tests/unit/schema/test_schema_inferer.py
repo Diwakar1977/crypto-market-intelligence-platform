@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 import pytest
 
 from src.schema.schema_inferer import SchemaInferer
-
 
 # =====================================================================
 # FIXTURES
@@ -228,10 +227,7 @@ def test_is_timestamp_empty_string(
 ) -> None:
     """Return False for an empty string."""
 
-    assert (
-        schema_inferer._is_timestamp("")
-        is False
-    )
+    assert schema_inferer._is_timestamp("") is False
 
 
 def test_is_timestamp_whitespace_string(
@@ -239,10 +235,7 @@ def test_is_timestamp_whitespace_string(
 ) -> None:
     """Return False for whitespace-only strings."""
 
-    assert (
-        schema_inferer._is_timestamp("   ")
-        is False
-    )
+    assert schema_inferer._is_timestamp("   ") is False
 
 
 def test_is_timestamp_short_string(
@@ -250,10 +243,7 @@ def test_is_timestamp_short_string(
 ) -> None:
     """Return False for strings shorter than eight characters."""
 
-    assert (
-        schema_inferer._is_timestamp("2026")
-        is False
-    )
+    assert schema_inferer._is_timestamp("2026") is False
 
 
 # =====================================================================
@@ -273,6 +263,7 @@ def test_infer_python_datetime(
         20,
         0,
         0,
+        tzinfo=timezone.utc,
     )
 
     records: list[dict[str, Any]] = [
@@ -595,7 +586,7 @@ def test_infer_empty_records(
 def test_infer_invalid_record_type(
     schema_inferer: SchemaInferer,
 ) -> None:
-    """Raise ValueError when a record is not a dictionary."""
+    """Raise TypeError when a record is not a dictionary."""
 
     records: list[Any] = [
         {
@@ -605,7 +596,7 @@ def test_infer_invalid_record_type(
     ]
 
     with pytest.raises(
-        ValueError,
+        TypeError,
         match="Every record must be a dictionary",
     ):
         schema_inferer.infer(records)
@@ -614,14 +605,14 @@ def test_infer_invalid_record_type(
 def test_infer_invalid_first_record(
     schema_inferer: SchemaInferer,
 ) -> None:
-    """Raise ValueError when the first record is invalid."""
+    """Raise TypeError when the first record is invalid."""
 
     records: list[Any] = [
         ["invalid"],
     ]
 
     with pytest.raises(
-        ValueError,
+        TypeError,
         match="Invalid record at position 1",
     ):
         schema_inferer.infer(records)
@@ -980,10 +971,7 @@ def test_infer_type_string(
 ) -> None:
     """Infer string value."""
 
-    assert (
-        schema_inferer._infer_type("bitcoin")
-        == "string"
-    )
+    assert schema_inferer._infer_type("bitcoin") == "string"
 
 
 def test_infer_type_integer(
@@ -991,10 +979,7 @@ def test_infer_type_integer(
 ) -> None:
     """Infer integer value."""
 
-    assert (
-        schema_inferer._infer_type(100)
-        == "integer"
-    )
+    assert schema_inferer._infer_type(100) == "integer"
 
 
 def test_infer_type_float(
@@ -1002,10 +987,7 @@ def test_infer_type_float(
 ) -> None:
     """Infer float value."""
 
-    assert (
-        schema_inferer._infer_type(100.50)
-        == "double"
-    )
+    assert schema_inferer._infer_type(100.50) == "double"
 
 
 def test_infer_type_boolean(
@@ -1013,10 +995,7 @@ def test_infer_type_boolean(
 ) -> None:
     """Infer boolean value."""
 
-    assert (
-        schema_inferer._infer_type(True)
-        == "boolean"
-    )
+    assert schema_inferer._infer_type(True) == "boolean"
 
 
 def test_infer_type_array(
@@ -1024,10 +1003,7 @@ def test_infer_type_array(
 ) -> None:
     """Infer list value."""
 
-    assert (
-        schema_inferer._infer_type(["btc", "eth"])
-        == "array"
-    )
+    assert schema_inferer._infer_type(["btc", "eth"]) == "array"
 
 
 def test_infer_type_object(
@@ -1035,10 +1011,7 @@ def test_infer_type_object(
 ) -> None:
     """Infer dictionary value."""
 
-    assert (
-        schema_inferer._infer_type({"symbol": "btc"})
-        == "object"
-    )
+    assert schema_inferer._infer_type({"symbol": "btc"}) == "object"
 
 
 def test_infer_type_datetime(
@@ -1052,12 +1025,10 @@ def test_infer_type_datetime(
         2,
         20,
         0,
+        tzinfo=timezone.utc,
     )
 
-    assert (
-        schema_inferer._infer_type(value)
-        == "timestamp"
-    )
+    assert schema_inferer._infer_type(value) == "timestamp"
 
 
 def test_infer_type_date(
@@ -1071,10 +1042,7 @@ def test_infer_type_date(
         2,
     )
 
-    assert (
-        schema_inferer._infer_type(value)
-        == "timestamp"
-    )
+    assert schema_inferer._infer_type(value) == "timestamp"
 
 
 def test_infer_type_timestamp_string(
@@ -1084,10 +1052,7 @@ def test_infer_type_timestamp_string(
 
     value = "2026-09-02T20:00:00Z"
 
-    assert (
-        schema_inferer._infer_type(value)
-        == "timestamp"
-    )
+    assert schema_inferer._infer_type(value) == "timestamp"
 
 
 def test_infer_type_unknown_value_defaults_to_string(
@@ -1100,10 +1065,7 @@ def test_infer_type_unknown_value_defaults_to_string(
 
     value = CustomObject()
 
-    assert (
-        schema_inferer._infer_type(value)
-        == "string"
-    )
+    assert schema_inferer._infer_type(value) == "string"
 
 
 # =====================================================================

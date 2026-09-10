@@ -10,7 +10,6 @@ from src.storage.path_builder import PathBuilder
 from src.storage.s3_storage import S3Storage
 from src.utils.logger import Logger
 
-
 logger = Logger.get_logger(
     "extract_job",
     "extract_job.log",
@@ -48,7 +47,7 @@ class ExtractJob:
             # ---------------------------------------------------------
             # STEP 1: FETCH DATA FROM COINGECKO
             # ---------------------------------------------------------
-            
+
             records = self.client.fetch_market_data()
 
             record_count = len(records)
@@ -59,28 +58,22 @@ class ExtractJob:
             )
 
             if record_count == 0:
-                raise ValueError(
-                    "CoinGecko returned zero records."
-                )
+                raise ValueError("CoinGecko returned zero records.")
 
             # ---------------------------------------------------------
             # STEP 2: READ CONFIGURATION
             # ---------------------------------------------------------
-            
-            raw_dataset = str(
-                CONFIG["application"]["raw_dataset"]
-            )
+
+            raw_dataset = str(CONFIG["application"]["raw_dataset"])
 
             s3_config = CONFIG["s3"]
 
-            s3_bucket = str(
-                s3_config["bucket"]
-            )
+            s3_bucket = str(s3_config["bucket"])
 
             # ---------------------------------------------------------
             # STEP 3: BUILD RAW S3 KEY
             # ---------------------------------------------------------
-            
+
             s3_key = PathBuilder.build_raw_path(
                 dataset_name=raw_dataset,
             )
@@ -94,13 +87,10 @@ class ExtractJob:
             # ---------------------------------------------------------
             # STEP 4: CREATE TEMPORARY NDJSON
             # ---------------------------------------------------------
-            
+
             with TemporaryDirectory() as temp_dir:
 
-                local_path = (
-                    Path(temp_dir)
-                    / f"{raw_dataset}.ndjson"
-                )
+                local_path = Path(temp_dir) / f"{raw_dataset}.ndjson"
 
                 self._write_ndjson(
                     records=records,
@@ -115,20 +105,18 @@ class ExtractJob:
                 # -----------------------------------------------------
                 # STEP 5: UPLOAD TO S3
                 # -----------------------------------------------------
-                
+
                 self.storage.upload_file(
                     local_path=local_path,
                     s3_key=s3_key,
                 )
 
-                logger.info(
-                    "Raw data uploaded successfully."
-                )
+                logger.info("Raw data uploaded successfully.")
 
             # ---------------------------------------------------------
             # STEP 6: RETURN EXTRACTION RESULT
             # ---------------------------------------------------------
-            
+
             result = ExtractResult(
                 s3_key=s3_key,
                 record_count=record_count,
@@ -148,9 +136,7 @@ class ExtractJob:
             return result
 
         except Exception:
-            logger.exception(
-                "Extract job failed."
-            )
+            logger.exception("Extract job failed.")
 
             Logger.log_banner(
                 logger,
@@ -190,12 +176,8 @@ def create_extract_job() -> ExtractJob:
     client = CoinGeckoClient()
 
     storage = S3Storage(
-        bucket_name=str(
-            s3_config["bucket"]
-        ),
-        region_name=str(
-            aws_config["region"]
-        ),
+        bucket_name=str(s3_config["bucket"]),
+        region_name=str(aws_config["region"]),
     )
 
     return ExtractJob(

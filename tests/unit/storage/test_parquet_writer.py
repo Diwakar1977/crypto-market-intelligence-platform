@@ -3,10 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pyspark.errors.exceptions.captured import IllegalArgumentException
 from pyspark.sql import DataFrame, SparkSession
 
 from src.spark.spark_session import SparkSessionFactory
 from src.storage.parquet_writer import ParquetWriter
+
+# =====================================================================
+# SPARK FIXTURE
+# =====================================================================
 
 
 @pytest.fixture(scope="module")
@@ -16,11 +21,21 @@ def spark() -> SparkSession:
     return SparkSessionFactory.create()
 
 
+# =====================================================================
+# PARQUET WRITER FIXTURE
+# =====================================================================
+
+
 @pytest.fixture
 def parquet_writer() -> ParquetWriter:
     """Create ParquetWriter instance."""
 
     return ParquetWriter()
+
+
+# =====================================================================
+# SAMPLE DATAFRAME
+# =====================================================================
 
 
 @pytest.fixture
@@ -47,6 +62,11 @@ def sample_dataframe(
     )
 
 
+# =====================================================================
+# SUCCESS
+# =====================================================================
+
+
 def test_write_parquet_success(
     parquet_writer: ParquetWriter,
     sample_dataframe: DataFrame,
@@ -54,9 +74,7 @@ def test_write_parquet_success(
 ) -> None:
     """Write DataFrame successfully to Parquet."""
 
-    output_path = str(
-        tmp_path / "processed"
-    )
+    output_path = str(tmp_path / "processed")
 
     parquet_writer.write(
         sample_dataframe,
@@ -64,15 +82,21 @@ def test_write_parquet_success(
     )
 
     result = sample_dataframe.sparkSession.read.parquet(
-        output_path
+        output_path,
     )
 
     assert result.count() == 3
+
     assert result.columns == [
         "id",
         "symbol",
         "current_price",
     ]
+
+
+# =====================================================================
+# DATA PRESERVATION
+# =====================================================================
 
 
 def test_write_parquet_preserves_data(
@@ -82,9 +106,7 @@ def test_write_parquet_preserves_data(
 ) -> None:
     """Verify written Parquet data matches source data."""
 
-    output_path = str(
-        tmp_path / "processed"
-    )
+    output_path = str(tmp_path / "processed")
 
     parquet_writer.write(
         sample_dataframe,
@@ -92,13 +114,10 @@ def test_write_parquet_preserves_data(
     )
 
     result = sample_dataframe.sparkSession.read.parquet(
-        output_path
+        output_path,
     )
 
-    actual = {
-        row["id"]: row["current_price"]
-        for row in result.collect()
-    }
+    actual = {row["id"]: row["current_price"] for row in result.collect()}
 
     expected = {
         "bitcoin": 100000.0,
@@ -109,6 +128,11 @@ def test_write_parquet_preserves_data(
     assert actual == expected
 
 
+# =====================================================================
+# APPEND MODE
+# =====================================================================
+
+
 def test_write_parquet_append_mode(
     parquet_writer: ParquetWriter,
     sample_dataframe: DataFrame,
@@ -116,9 +140,7 @@ def test_write_parquet_append_mode(
 ) -> None:
     """Verify append mode adds records to existing dataset."""
 
-    output_path = str(
-        tmp_path / "processed"
-    )
+    output_path = str(tmp_path / "processed")
 
     parquet_writer.write(
         sample_dataframe,
@@ -132,10 +154,15 @@ def test_write_parquet_append_mode(
     )
 
     result = sample_dataframe.sparkSession.read.parquet(
-        output_path
+        output_path,
     )
 
     assert result.count() == 6
+
+
+# =====================================================================
+# OVERWRITE MODE
+# =====================================================================
 
 
 def test_write_parquet_overwrite_mode(
@@ -145,9 +172,7 @@ def test_write_parquet_overwrite_mode(
 ) -> None:
     """Verify overwrite mode replaces existing dataset."""
 
-    output_path = str(
-        tmp_path / "processed"
-    )
+    output_path = str(tmp_path / "processed")
 
     parquet_writer.write(
         sample_dataframe,
@@ -170,7 +195,7 @@ def test_write_parquet_overwrite_mode(
     )
 
     result = sample_dataframe.sparkSession.read.parquet(
-        output_path
+        output_path,
     )
 
     assert result.count() == 1
@@ -181,6 +206,11 @@ def test_write_parquet_overwrite_mode(
     assert row["id"] == "cardano"
     assert row["symbol"] == "ada"
     assert row["current_price"] == 1.0
+
+
+# =====================================================================
+# EMPTY OUTPUT PATH
+# =====================================================================
 
 
 def test_write_parquet_empty_path(
@@ -199,18 +229,23 @@ def test_write_parquet_empty_path(
         )
 
 
+# =====================================================================
+# INVALID WRITE MODE
+# =====================================================================
+
+
 def test_write_parquet_invalid_mode(
     parquet_writer: ParquetWriter,
     sample_dataframe: DataFrame,
     tmp_path: Path,
 ) -> None:
-    """Raise an error when an invalid Spark write mode is supplied."""
+    """Reject an invalid Spark write mode."""
 
-    output_path = str(
-        tmp_path / "processed"
-    )
+    output_path = str(tmp_path / "processed")
 
-    with pytest.raises(Exception):
+    with pytest.raises(
+        (ValueError, IllegalArgumentException),
+    ):
         parquet_writer.write(
             sample_dataframe,
             output_path,

@@ -19,12 +19,7 @@ from src.transform.data_normalizer import DataNormalizer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
-RAW_DATA_FILE = (
-    PROJECT_ROOT
-    / "data"
-    / "sample"
-    / "crypto_market_sample.ndjson"
-)
+RAW_DATA_FILE = PROJECT_ROOT / "data" / "sample" / "crypto_market_sample.ndjson"
 
 
 @pytest.fixture(scope="module")

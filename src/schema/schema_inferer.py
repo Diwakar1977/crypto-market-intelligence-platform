@@ -5,7 +5,6 @@ from typing import Any, ClassVar
 
 from src.utils.logger import Logger
 
-
 logger = Logger.get_logger(
     "schema_inferer",
     "schema_inferer.log",
@@ -68,9 +67,7 @@ class SchemaInferer:
         )
 
         if not records:
-            raise ValueError(
-                "Cannot infer schema from empty records."
-            )
+            raise ValueError("Cannot infer schema from empty records.")
 
         # Preserve the original source column order.
         column_order: list[str] = []
@@ -85,7 +82,7 @@ class SchemaInferer:
         for record_number, record in enumerate(records, start=1):
 
             if not isinstance(record, dict):
-                raise ValueError(
+                raise TypeError(
                     "Every record must be a dictionary. "
                     f"Invalid record at position {record_number}."
                 )
@@ -124,13 +121,11 @@ class SchemaInferer:
         # ---------------------------------------------------------
 
         ordered_schema = {
-            column_name: schema[column_name]
-            for column_name in column_order
+            column_name: schema[column_name] for column_name in column_order
         }
 
         logger.info(
-            "Schema inference completed successfully. "
-            "Columns inferred=%d",
+            "Schema inference completed successfully. " "Columns inferred=%d",
             len(ordered_schema),
         )
 
@@ -300,26 +295,17 @@ class SchemaInferer:
         # Numeric widening
         # ---------------------------------------------------------
 
-        if (
-            current_type in self.NUMERIC_TYPES
-            and new_type in self.NUMERIC_TYPES
-        ):
+        if current_type in self.NUMERIC_TYPES and new_type in self.NUMERIC_TYPES:
             return "double"
 
         # ---------------------------------------------------------
         # Timestamp conflicts
         # ---------------------------------------------------------
 
-        if (
-            current_type == "timestamp"
-            and new_type == "string"
-        ):
+        if current_type == "timestamp" and new_type == "string":
             return "timestamp"
 
-        if (
-            current_type == "string"
-            and new_type == "timestamp"
-        ):
+        if current_type == "string" and new_type == "timestamp":
             return "timestamp"
 
         # ---------------------------------------------------------

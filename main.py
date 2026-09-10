@@ -5,11 +5,11 @@ from datetime import datetime, timezone
 from pyspark.sql import SparkSession
 
 from config.config import CONFIG
-from src.notifications.email_template import EmailTemplate
-from src.notifications.sns_notification import SNSNotification
 from src.extract.extract_job import ExtractResult, create_extract_job
 from src.load.load_job import LoadResult, create_load_job
 from src.load.redshift_storage import RedshiftStorage
+from src.notifications.email_template import EmailTemplate
+from src.notifications.sns_notification import SNSNotification
 from src.spark.spark_session import SparkSessionFactory
 from src.transform.transform_job import create_transform_job
 from src.utils.logger import Logger
@@ -33,9 +33,7 @@ class CryptoETLPipeline:
         self.s3_config = self.config["s3"]
         self.redshift_config = self.config["redshift"]
 
-        self.pipeline_name = str(
-            self.application_config["pipeline_name"]
-        )
+        self.pipeline_name = str(self.application_config["pipeline_name"])
 
         self.spark: SparkSession | None = None
 
@@ -51,11 +49,7 @@ class CryptoETLPipeline:
             "CRYPTO ETL PIPELINE STARTED",
         )
 
-        execution_date = datetime.now(
-            timezone.utc
-        ).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
-        )
+        execution_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         try:
             # ==========================================================
@@ -73,9 +67,7 @@ class CryptoETLPipeline:
 
             self.extract_result = extract_result
 
-            logger.info(
-                "Extraction completed successfully."
-            )
+            logger.info("Extraction completed successfully.")
 
             logger.info(
                 "Raw S3 key: %s",
@@ -87,13 +79,9 @@ class CryptoETLPipeline:
                 extract_result.record_count,
             )
 
-            raw_bucket = str(
-                self.s3_config["bucket"]
-            )
+            raw_bucket = str(self.s3_config["bucket"])
 
-            raw_spark_path = (
-                f"s3a://{raw_bucket}/{extract_result.s3_key}"
-            )
+            raw_spark_path = f"s3a://{raw_bucket}/{extract_result.s3_key}"
 
             logger.info(
                 "Raw Spark input path: %s",
@@ -111,9 +99,7 @@ class CryptoETLPipeline:
 
             self.spark = SparkSessionFactory.create()
 
-            logger.info(
-                "Spark session created successfully."
-            )
+            logger.info("Spark session created successfully.")
 
             # ==========================================================
             # STEP 3 - TRANSFORM
@@ -125,9 +111,7 @@ class CryptoETLPipeline:
             )
 
             if self.spark is None:
-                raise RuntimeError(
-                    "Spark session was not initialized."
-                )
+                raise RuntimeError("Spark session was not initialized.")
 
             transform_job = create_transform_job(
                 spark=self.spark,
@@ -137,9 +121,7 @@ class CryptoETLPipeline:
                 input_path=raw_spark_path,
             )
 
-            logger.info(
-                "Transform completed successfully."
-            )
+            logger.info("Transform completed successfully.")
 
             logger.info(
                 "Processed Spark path: %s",
@@ -174,26 +156,14 @@ class CryptoETLPipeline:
             )
 
             self.redshift_storage = RedshiftStorage(
-                host=str(
-                    self.redshift_config["host"]
-                ),
-                port=int(
-                    self.redshift_config["port"]
-                ),
-                database=str(
-                    self.redshift_config["database"]
-                ),
-                aws_region=str(
-                    self.aws_config["region"]
-                ),
-                workgroup=str(
-                    self.redshift_config["workgroup"]
-                ),
+                host=str(self.redshift_config["host"]),
+                port=int(self.redshift_config["port"]),
+                database=str(self.redshift_config["database"]),
+                aws_region=str(self.aws_config["region"]),
+                workgroup=str(self.redshift_config["workgroup"]),
             )
 
-            logger.info(
-                "Redshift storage initialized successfully."
-            )
+            logger.info("Redshift storage initialized successfully.")
 
             # ==========================================================
             # STEP 6 - LOAD
@@ -207,24 +177,16 @@ class CryptoETLPipeline:
             load_job = create_load_job(
                 spark=self.spark,
                 redshift_storage=self.redshift_storage,
-                redshift_schema=str(
-                    self.redshift_config["schema"]
-                ),
-                redshift_table=str(
-                    self.redshift_config["table"]
-                ),
+                redshift_schema=str(self.redshift_config["schema"]),
+                redshift_table=str(self.redshift_config["table"]),
                 processed_spark_path=processed_spark_path,
                 processed_s3_path=processed_s3_path,
-                redshift_iam_role=str(
-                    self.redshift_config["iam_role"]
-                ),
+                redshift_iam_role=str(self.redshift_config["iam_role"]),
             )
 
             load_result = load_job.run()
 
-            logger.info(
-                "Redshift load completed successfully."
-            )
+            logger.info("Redshift load completed successfully.")
 
             logger.info(
                 "Target table: %s.%s",
@@ -258,9 +220,7 @@ class CryptoETLPipeline:
             return load_result
 
         except Exception as exc:
-            logger.exception(
-                "Crypto ETL pipeline failed."
-            )
+            logger.exception("Crypto ETL pipeline failed.")
 
             # ==========================================================
             # FAILURE NOTIFICATION
@@ -299,9 +259,7 @@ class CryptoETLPipeline:
         """Convert a Spark S3A path to a standard S3 path."""
 
         if not processed_spark_path.strip():
-            raise ValueError(
-                "Processed Spark path cannot be empty."
-            )
+            raise ValueError("Processed Spark path cannot be empty.")
 
         if processed_spark_path.startswith("s3a://"):
             return processed_spark_path.replace(
@@ -313,10 +271,7 @@ class CryptoETLPipeline:
         if processed_spark_path.startswith("s3://"):
             return processed_spark_path
 
-        raise ValueError(
-            "Processed path must start with "
-            "'s3a://' or 's3://'."
-        )
+        raise ValueError("Processed path must start with " "'s3a://' or 's3://'.")
 
     def _send_success_notification(
         self,
@@ -325,10 +280,7 @@ class CryptoETLPipeline:
     ) -> None:
         """Send a successful pipeline notification through SNS."""
 
-        sns_config = self.config.get(
-            "sns",
-            {}
-        )
+        sns_config = self.config.get("sns", {})
 
         topic_arn = str(
             sns_config.get(
@@ -340,8 +292,7 @@ class CryptoETLPipeline:
 
         if not topic_arn:
             logger.info(
-                "SNS topic ARN is not configured. "
-                "Skipping success notification."
+                "SNS topic ARN is not configured. " "Skipping success notification."
             )
 
             return
@@ -361,15 +312,12 @@ class CryptoETLPipeline:
             )
 
             logger.info(
-                "Success notification sent successfully. "
-                "MessageId: %s",
+                "Success notification sent successfully. " "MessageId: %s",
                 message_id,
             )
 
         except Exception:
-            logger.exception(
-                "Failed to send success notification."
-            )
+            logger.exception("Failed to send success notification.")
 
     def _send_failure_notification(
         self,
@@ -378,10 +326,7 @@ class CryptoETLPipeline:
     ) -> None:
         """Send a failed pipeline notification through SNS."""
 
-        sns_config = self.config.get(
-            "sns",
-            {}
-        )
+        sns_config = self.config.get("sns", {})
 
         topic_arn = str(
             sns_config.get(
@@ -393,8 +338,7 @@ class CryptoETLPipeline:
 
         if not topic_arn:
             logger.info(
-                "SNS topic ARN is not configured. "
-                "Skipping failure notification."
+                "SNS topic ARN is not configured. " "Skipping failure notification."
             )
 
             return
@@ -414,15 +358,12 @@ class CryptoETLPipeline:
             )
 
             logger.info(
-                "Failure notification sent successfully. "
-                "MessageId: %s",
+                "Failure notification sent successfully. " "MessageId: %s",
                 message_id,
             )
 
         except Exception:
-            logger.exception(
-                "Failed to send failure notification."
-            )
+            logger.exception("Failed to send failure notification.")
 
     def _close_redshift(self) -> None:
         """Close Redshift resources."""
@@ -431,20 +372,14 @@ class CryptoETLPipeline:
             return
 
         try:
-            logger.info(
-                "Closing Redshift connection."
-            )
+            logger.info("Closing Redshift connection.")
 
             self.redshift_storage.close()
 
-            logger.info(
-                "Redshift connection closed successfully."
-            )
+            logger.info("Redshift connection closed successfully.")
 
         except Exception:
-            logger.exception(
-                "Failed to close Redshift connection."
-            )
+            logger.exception("Failed to close Redshift connection.")
 
         finally:
             self.redshift_storage = None
@@ -456,20 +391,14 @@ class CryptoETLPipeline:
             return
 
         try:
-            logger.info(
-                "Stopping Spark session."
-            )
+            logger.info("Stopping Spark session.")
 
             self.spark.stop()
 
-            logger.info(
-                "Spark session stopped successfully."
-            )
+            logger.info("Spark session stopped successfully.")
 
         except Exception:
-            logger.exception(
-                "Failed to stop Spark session."
-            )
+            logger.exception("Failed to stop Spark session.")
 
         finally:
             self.spark = None

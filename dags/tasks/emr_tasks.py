@@ -15,7 +15,6 @@ from airflow.sdk import TriggerRule
 
 from config.config import CONFIG
 
-
 # ------------------------------------
 # CONFIGURATION
 # ------------------------------------
@@ -30,39 +29,26 @@ EMR_CLUSTER_NAME = str(EMR_CONFIG["cluster_name"])
 EMR_RELEASE = str(EMR_CONFIG["release"])
 EMR_SUBNET_ID = str(EMR_CONFIG["subnet_id"])
 
-EMR_MASTER_INSTANCE_TYPE = str(
-    EMR_CONFIG["master_instance_type"]
-)
-EMR_CORE_INSTANCE_TYPE = str(
-    EMR_CONFIG["core_instance_type"]
-)
+EMR_MASTER_INSTANCE_TYPE = str(EMR_CONFIG["master_instance_type"])
+EMR_CORE_INSTANCE_TYPE = str(EMR_CONFIG["core_instance_type"])
 
-EMR_CORE_INSTANCE_COUNT = int(
-    EMR_CONFIG["core_instance_count"]
-)
+EMR_CORE_INSTANCE_COUNT = int(EMR_CONFIG["core_instance_count"])
 
-EMR_INSTANCE_PROFILE = str(
-    EMR_CONFIG["instance_profile"]
-)
+EMR_INSTANCE_PROFILE = str(EMR_CONFIG["instance_profile"])
 
-EMR_SERVICE_ROLE = str(
-    EMR_CONFIG["service_role"]
-)
+EMR_SERVICE_ROLE = str(EMR_CONFIG["service_role"])
 
-EMR_LOG_URI = str(
-    EMR_CONFIG["log_uri"]
-)
+EMR_LOG_URI = str(EMR_CONFIG["log_uri"])
 
 S3_BUCKET = str(S3_CONFIG["bucket"])
 S3_RAW_PREFIX = str(S3_CONFIG["raw_prefix"])
-S3_PROCESSED_PREFIX = str(
-    S3_CONFIG["processed_prefix"]
-)
+S3_PROCESSED_PREFIX = str(S3_CONFIG["processed_prefix"])
 
 
 # ------------------------------------
 # CREATE EMR CLUSTER
 # ------------------------------------
+
 
 def create_emr_cluster() -> EmrCreateJobFlowOperator:
     """Create an EMR cluster for Spark transformation."""
@@ -114,6 +100,7 @@ def create_emr_cluster() -> EmrCreateJobFlowOperator:
 # WAIT FOR EMR CLUSTER
 # ------------------------------------
 
+
 def wait_for_emr_cluster() -> EmrJobFlowSensor:
     """Wait until EMR cluster reaches WAITING state."""
 
@@ -140,6 +127,7 @@ def wait_for_emr_cluster() -> EmrJobFlowSensor:
 # ------------------------------------
 # ADD TRANSFORM STEP
 # ------------------------------------
+
 
 def add_transform_step() -> EmrAddStepsOperator:
     """Submit the Spark transformation step to EMR."""
@@ -182,6 +170,7 @@ def add_transform_step() -> EmrAddStepsOperator:
 # WAIT FOR TRANSFORM STEP
 # ------------------------------------
 
+
 def wait_for_transform_step() -> EmrStepSensor:
     """Wait until the Spark transformation step completes."""
 
@@ -217,6 +206,7 @@ def wait_for_transform_step() -> EmrStepSensor:
 # TERMINATE EMR CLUSTER
 # ------------------------------------
 
+
 def terminate_emr_cluster() -> EmrTerminateJobFlowOperator:
     """
     Terminate the EMR cluster after transformation.
@@ -242,6 +232,7 @@ def terminate_emr_cluster() -> EmrTerminateJobFlowOperator:
 # ------------------------------------
 # CREATE EMR TASKS
 # ------------------------------------
+
 
 def create_emr_tasks() -> list[Any]:
     """Create and chain all EMR orchestration tasks."""

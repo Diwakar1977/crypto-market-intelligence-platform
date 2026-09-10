@@ -54,9 +54,7 @@ class SchemaLoader:
                 schema_path,
             )
 
-            raise FileNotFoundError(
-                f"Schema file not found: {schema_path}"
-            )
+            raise FileNotFoundError(f"Schema file not found: {schema_path}")
 
         with schema_path.open(
             "r",
@@ -71,13 +69,10 @@ class SchemaLoader:
 
         if not isinstance(schema_data, dict):
             logger.error(
-                "Schema validation failed: "
-                "schema must contain a JSON object"
+                "Schema validation failed: " "schema must contain a JSON object"
             )
 
-            raise TypeError(
-                "Schema must contain a JSON object."
-            )
+            raise TypeError("Schema must contain a JSON object.")
 
         fields: list[StructField] = []
 
@@ -85,13 +80,10 @@ class SchemaLoader:
 
             if not isinstance(column_name, str):
                 logger.error(
-                    "Schema validation failed: "
-                    "column name must be a string"
+                    "Schema validation failed: " "column name must be a string"
                 )
 
-                raise TypeError(
-                    "Schema column name must be a string."
-                )
+                raise TypeError("Schema column name must be a string.")
 
             if not isinstance(data_type, str):
                 logger.error(
@@ -101,16 +93,14 @@ class SchemaLoader:
                 )
 
                 raise TypeError(
-                    f"Schema type for column "
-                    f"'{column_name}' must be a string."
+                    f"Schema type for column " f"'{column_name}' must be a string."
                 )
 
             spark_type = self.TYPE_MAPPING.get(data_type)
 
             if spark_type is None:
                 logger.error(
-                    "Unsupported Spark type '%s' "
-                    "for column '%s'",
+                    "Unsupported Spark type '%s' " "for column '%s'",
                     data_type,
                     column_name,
                 )
@@ -130,8 +120,7 @@ class SchemaLoader:
             )
 
         logger.info(
-            "Schema loaded successfully. "
-            "Columns loaded: %d",
+            "Schema loaded successfully. " "Columns loaded: %d",
             len(fields),
         )
 

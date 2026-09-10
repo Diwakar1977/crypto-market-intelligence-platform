@@ -6,12 +6,10 @@ from airflow.providers.standard.operators.python import PythonOperator
 from airflow.sdk import DAG
 
 from config.config import CONFIG
-
 from dags.callbacks.dag_callbacks import (
     dag_failure_callback,
     dag_success_callback,
 )
-
 from dags.config.dag_config import (
     DAG_CATCHUP,
     DAG_DEFAULT_ARGS,
@@ -23,12 +21,10 @@ from dags.config.dag_config import (
     DAG_START_DATE,
     DAG_TAGS,
 )
-
 from src.extract.extract_job import run_extract_job
 from src.load.load_job import run_load_job
 from src.spark.spark_session import SparkSessionFactory
 from src.transform.transform_job import run_transform_job
-
 
 # ============================================================
 # CONFIGURATION
@@ -42,21 +38,18 @@ RUNTIME_CONFIG = CONFIG["runtime"]
 # COMPUTE MODE
 # ============================================================
 
-COMPUTE_MODE = str(
-    RUNTIME_CONFIG["compute_mode"]
-).strip().lower()
+COMPUTE_MODE = str(RUNTIME_CONFIG["compute_mode"]).strip().lower()
 
 if COMPUTE_MODE not in {"local", "emr"}:
     raise ValueError(
-        "Invalid compute_mode. "
-        "Expected 'local' or 'emr'. "
-        f"Got: {COMPUTE_MODE}"
+        "Invalid compute_mode. " "Expected 'local' or 'emr'. " f"Got: {COMPUTE_MODE}"
     )
 
 
 # ============================================================
 # EXTRACT JOB
 # ============================================================
+
 
 def execute_extract() -> dict[str, Any]:
     """
@@ -78,6 +71,7 @@ def execute_extract() -> dict[str, Any]:
 # LOCAL TRANSFORM JOB
 # ============================================================
 
+
 def execute_local_transform(**context: Any) -> str:
     """
     Execute the Spark transformation locally.
@@ -88,32 +82,20 @@ def execute_local_transform(**context: Any) -> str:
 
     task_instance = context["ti"]
 
-    extract_result = task_instance.xcom_pull(
-        task_ids="extract"
-    )
+    extract_result = task_instance.xcom_pull(task_ids="extract")
 
     if not extract_result:
-        raise ValueError(
-            "Extract task did not return a result."
-        )
+        raise ValueError("Extract task did not return a result.")
 
-    raw_s3_key = str(
-        extract_result["s3_key"]
-    ).strip()
+    raw_s3_key = str(extract_result["s3_key"]).strip()
 
     if not raw_s3_key:
-        raise ValueError(
-            "Extract task returned an empty S3 key."
-        )
+        raise ValueError("Extract task returned an empty S3 key.")
 
-    bucket = str(
-        S3_CONFIG["bucket"]
-    ).strip()
+    bucket = str(S3_CONFIG["bucket"]).strip()
 
     if not bucket:
-        raise ValueError(
-            "S3 bucket cannot be empty."
-        )
+        raise ValueError("S3 bucket cannot be empty.")
 
     input_path = f"s3a://{bucket}/{raw_s3_key}"
 
@@ -131,6 +113,7 @@ def execute_local_transform(**context: Any) -> str:
 # ============================================================
 # LOAD JOB
 # ============================================================
+
 
 def execute_load() -> Any:
     """

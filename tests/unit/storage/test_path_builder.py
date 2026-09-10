@@ -119,11 +119,7 @@ def test_path_builder_logs() -> None:
 
     project_root = Path(__file__).resolve().parents[3]
 
-    log_file = (
-        project_root
-        / "logs"
-        / "test_path_builder.log"
-    )
+    log_file = project_root / "logs" / "test_path_builder.log"
 
     assert log_file.exists()
 

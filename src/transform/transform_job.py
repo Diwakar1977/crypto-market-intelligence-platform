@@ -20,7 +20,6 @@ from src.transform.data_validator import (
 from src.transform.feature_engineer import FeatureEngineer
 from src.utils.logger import Logger
 
-
 logger = Logger.get_logger(
     "transform_job",
     "transform_job.log",
@@ -68,9 +67,7 @@ class TransformJob:
         try:
 
             if not input_path or not input_path.strip():
-                raise ValueError(
-                    "Input path cannot be empty."
-                )
+                raise ValueError("Input path cannot be empty.")
 
             logger.info(
                 "Raw input path: %s",
@@ -80,29 +77,21 @@ class TransformJob:
             application_config = CONFIG["application"]
             s3_config = CONFIG["s3"]
 
-            raw_dataset = str(
-                application_config["raw_dataset"]
-            )
+            raw_dataset = str(application_config["raw_dataset"])
 
-            s3_bucket = str(
-                s3_config["bucket"]
-            )
+            s3_bucket = str(s3_config["bucket"])
 
             # =====================================================
             # STEP 1 - ORIGINAL JSON COLUMN ORDER
             # =====================================================
 
-            original_json_column_order = (
-                self._get_original_json_column_order(
-                    input_path=input_path,
-                )
+            original_json_column_order = self._get_original_json_column_order(
+                input_path=input_path,
             )
 
             logger.info(
                 "ORIGINAL NDJSON column order: %s",
-                ", ".join(
-                    original_json_column_order
-                ),
+                ", ".join(original_json_column_order),
             )
 
             # =====================================================
@@ -116,13 +105,10 @@ class TransformJob:
             raw_record_count = raw_df.count()
 
             if raw_record_count == 0:
-                raise ValueError(
-                    "Raw input contains no records."
-                )
+                raise ValueError("Raw input contains no records.")
 
             logger.info(
-                "Raw data loaded successfully. "
-                "records=%d columns=%d",
+                "Raw data loaded successfully. " "records=%d columns=%d",
                 raw_record_count,
                 len(raw_df.columns),
             )
@@ -132,9 +118,7 @@ class TransformJob:
             # =====================================================
 
             self._validate_source_columns(
-                original_json_column_order=(
-                    original_json_column_order
-                ),
+                original_json_column_order=(original_json_column_order),
                 raw_df=raw_df,
             )
 
@@ -142,31 +126,22 @@ class TransformJob:
             # STEP 4 - COLLECT RECORDS FOR SCHEMA INFERENCE
             # =====================================================
 
-            records = [
-                row.asDict(
-                    recursive=True
-                )
-                for row in raw_df.collect()
-            ]
+            records = [row.asDict(recursive=True) for row in raw_df.collect()]
 
             # =====================================================
             # STEP 5 - SCHEMA INFERENCE
             # =====================================================
 
-            inferred_schema = (
-                self.schema_inferer.infer(
-                    records,
-                )
+            inferred_schema = self.schema_inferer.infer(
+                records,
             )
 
             # =====================================================
             # STEP 6 - SCHEMA MANAGEMENT
             # =====================================================
 
-            managed_schema = (
-                self.schema_manager.normalize(
-                    inferred_schema,
-                )
+            managed_schema = self.schema_manager.normalize(
+                inferred_schema,
             )
 
             self.schema_manager.validate(
@@ -186,52 +161,40 @@ class TransformJob:
             # STEP 8 - DATA VALIDATION
             # =====================================================
 
-            validation_result = (
-                self.data_validator.validate(
-                    typed_df,
-                )
+            validation_result = self.data_validator.validate(
+                typed_df,
             )
 
             self._handle_validation_result(
                 validation_result,
             )
 
-            logger.info(
-                "Data validation completed successfully."
-            )
+            logger.info("Data validation completed successfully.")
 
             # =====================================================
             # STEP 9 - DATA NORMALIZATION
             # =====================================================
 
-            normalized_df = (
-                self.data_normalizer.normalize(
-                    typed_df,
-                )
+            normalized_df = self.data_normalizer.normalize(
+                typed_df,
             )
 
             # =====================================================
             # STEP 10 - SURVIVING RAW COLUMNS
             # =====================================================
 
-            normalized_column_set = set(
-                normalized_df.columns
-            )
+            normalized_column_set = set(normalized_df.columns)
 
             surviving_raw_columns = [
                 column_name
-                for column_name
-                in original_json_column_order
-                if column_name
-                in normalized_column_set
+                for column_name in original_json_column_order
+                if column_name in normalized_column_set
             ]
 
             removed_raw_columns = [
                 column_name
-                for column_name
-                in original_json_column_order
-                if column_name
-                not in normalized_column_set
+                for column_name in original_json_column_order
+                if column_name not in normalized_column_set
             ]
 
             logger.info(
@@ -242,9 +205,7 @@ class TransformJob:
             if removed_raw_columns:
                 logger.info(
                     "RAW columns removed: %s",
-                    ", ".join(
-                        removed_raw_columns
-                    ),
+                    ", ".join(removed_raw_columns),
                 )
 
             # =====================================================
@@ -252,9 +213,7 @@ class TransformJob:
             # =====================================================
 
             self._validate_normalized_columns(
-                raw_column_order=(
-                    surviving_raw_columns
-                ),
+                raw_column_order=(surviving_raw_columns),
                 normalized_df=normalized_df,
             )
 
@@ -262,30 +221,22 @@ class TransformJob:
             # STEP 12 - FEATURE ENGINEERING
             # =====================================================
 
-            processed_df = (
-                self.feature_engineer.transform(
-                    normalized_df,
-                )
+            processed_df = self.feature_engineer.transform(
+                normalized_df,
             )
 
             # =====================================================
             # STEP 13 - FINAL COLUMN ORDER
             # =====================================================
 
-            processed_df = (
-                self._order_processed_columns(
-                    raw_column_order=(
-                        surviving_raw_columns
-                    ),
-                    processed_df=processed_df,
-                )
+            processed_df = self._order_processed_columns(
+                raw_column_order=(surviving_raw_columns),
+                processed_df=processed_df,
             )
 
             logger.info(
                 "Final processed column order: %s",
-                ", ".join(
-                    processed_df.columns
-                ),
+                ", ".join(processed_df.columns),
             )
 
             # =====================================================
@@ -293,9 +244,7 @@ class TransformJob:
             # =====================================================
 
             self._validate_final_columns(
-                raw_column_order=(
-                    surviving_raw_columns
-                ),
+                raw_column_order=(surviving_raw_columns),
                 processed_df=processed_df,
             )
 
@@ -303,15 +252,11 @@ class TransformJob:
             # STEP 15 - WRITE PARQUET
             # =====================================================
 
-            processed_key = (
-                self.path_builder.build_processed_path(
-                    dataset_name=raw_dataset,
-                )
+            processed_key = self.path_builder.build_processed_path(
+                dataset_name=raw_dataset,
             )
 
-            processed_path = (
-                f"s3a://{s3_bucket}/{processed_key}"
-            )
+            processed_path = f"s3a://{s3_bucket}/{processed_key}"
 
             logger.info(
                 "Processed S3 destination: %s",
@@ -324,9 +269,7 @@ class TransformJob:
                 mode="append",
             )
 
-            logger.info(
-                "Processed Parquet data written successfully."
-            )
+            logger.info("Processed Parquet data written successfully.")
 
             Logger.log_banner(
                 logger,
@@ -337,9 +280,7 @@ class TransformJob:
 
         except Exception:
 
-            logger.exception(
-                "Transform job failed."
-            )
+            logger.exception("Transform job failed.")
 
             Logger.log_banner(
                 logger,
@@ -358,17 +299,10 @@ class TransformJob:
     ) -> list[str]:
 
         if not input_path or not input_path.strip():
-            raise ValueError(
-                "Input path cannot be empty."
-            )
+            raise ValueError("Input path cannot be empty.")
 
-        if not input_path.startswith(
-            "s3a://"
-        ):
-            raise ValueError(
-                "Expected s3a:// input path, "
-                f"got: {input_path}"
-            )
+        if not input_path.startswith("s3a://"):
+            raise ValueError("Expected s3a:// input path, " f"got: {input_path}")
 
         s3_path = input_path.replace(
             "s3a://",
@@ -377,10 +311,7 @@ class TransformJob:
         )
 
         if "/" not in s3_path:
-            raise ValueError(
-                "Invalid S3A path. "
-                "Expected s3a://bucket/key."
-            )
+            raise ValueError("Invalid S3A path. " "Expected s3a://bucket/key.")
 
         bucket, key = s3_path.split(
             "/",
@@ -388,14 +319,10 @@ class TransformJob:
         )
 
         if not bucket:
-            raise ValueError(
-                "S3 bucket cannot be empty."
-            )
+            raise ValueError("S3 bucket cannot be empty.")
 
         if not key:
-            raise ValueError(
-                "S3 object key cannot be empty."
-            )
+            raise ValueError("S3 object key cannot be empty.")
 
         s3 = boto3.client(
             "s3",
@@ -414,20 +341,12 @@ class TransformJob:
             body.close()
 
         if not first_line_bytes:
-            raise ValueError(
-                "Raw NDJSON file is empty."
-            )
+            raise ValueError("Raw NDJSON file is empty.")
 
-        first_line = (
-            first_line_bytes
-            .decode("utf-8")
-            .strip()
-        )
+        first_line = first_line_bytes.decode("utf-8").strip()
 
         if not first_line:
-            raise ValueError(
-                "First NDJSON line is empty."
-            )
+            raise ValueError("First NDJSON line is empty.")
 
         try:
             first_record = json.loads(
@@ -436,26 +355,18 @@ class TransformJob:
 
         except json.JSONDecodeError as exc:
 
-            raise ValueError(
-                "First NDJSON line is not valid JSON."
-            ) from exc
+            raise ValueError("First NDJSON line is not valid JSON.") from exc
 
         if not isinstance(
             first_record,
             dict,
         ):
-            raise ValueError(
-                "First NDJSON record must be a JSON object."
-            )
+            raise TypeError("First NDJSON record must be a JSON object.")
 
-        column_order = list(
-            first_record.keys()
-        )
+        column_order = list(first_record.keys())
 
         if not column_order:
-            raise ValueError(
-                "First NDJSON record contains no columns."
-            )
+            raise ValueError("First NDJSON record contains no columns.")
 
         return column_order
 
@@ -469,9 +380,7 @@ class TransformJob:
     ) -> DataFrame:
 
         if not input_path or not input_path.strip():
-            raise ValueError(
-                "Input path cannot be empty."
-            )
+            raise ValueError("Input path cannot be empty.")
 
         return self.spark.read.json(
             input_path,
@@ -487,16 +396,12 @@ class TransformJob:
         raw_df: DataFrame,
     ) -> None:
 
-        spark_columns = set(
-            raw_df.columns
-        )
+        spark_columns = set(raw_df.columns)
 
         missing_columns = [
             column_name
-            for column_name
-            in original_json_column_order
-            if column_name
-            not in spark_columns
+            for column_name in original_json_column_order
+            if column_name not in spark_columns
         ]
 
         if missing_columns:
@@ -515,16 +420,12 @@ class TransformJob:
         normalized_df: DataFrame,
     ) -> None:
 
-        normalized_columns = set(
-            normalized_df.columns
-        )
+        normalized_columns = set(normalized_df.columns)
 
         missing_columns = [
             column_name
-            for column_name
-            in raw_column_order
-            if column_name
-            not in normalized_columns
+            for column_name in raw_column_order
+            if column_name not in normalized_columns
         ]
 
         if missing_columns:
@@ -543,50 +444,33 @@ class TransformJob:
         processed_df: DataFrame,
     ) -> DataFrame:
 
-        processed_columns = list(
-            processed_df.columns
-        )
+        processed_columns = list(processed_df.columns)
 
         original_columns = [
             column_name
-            for column_name
-            in raw_column_order
-            if column_name
-            in processed_columns
+            for column_name in raw_column_order
+            if column_name in processed_columns
         ]
 
         derived_columns = [
             column_name
-            for column_name
-            in processed_columns
-            if column_name
-            not in original_columns
+            for column_name in processed_columns
+            if column_name not in original_columns
         ]
 
-        final_columns = (
-            original_columns
-            + derived_columns
-        )
+        final_columns = original_columns + derived_columns
 
         if not final_columns:
-            raise ValueError(
-                "No columns available after transformation."
-            )
+            raise ValueError("No columns available after transformation.")
 
-        if len(final_columns) != len(
-            processed_columns
-        ):
+        if len(final_columns) != len(processed_columns):
             raise ValueError(
                 "Final column ordering does not match "
                 "processed DataFrame column count."
             )
 
-        if len(final_columns) != len(
-            set(final_columns)
-        ):
-            raise ValueError(
-                "Duplicate columns detected in final order."
-            )
+        if len(final_columns) != len(set(final_columns)):
+            raise ValueError("Duplicate columns detected in final order.")
 
         return processed_df.select(
             *final_columns,
@@ -602,13 +486,9 @@ class TransformJob:
         processed_df: DataFrame,
     ) -> None:
 
-        processed_columns = list(
-            processed_df.columns
-        )
+        processed_columns = list(processed_df.columns)
 
-        raw_count = len(
-            raw_column_order
-        )
+        raw_count = len(raw_column_order)
 
         if len(processed_columns) < raw_count:
             raise ValueError(
@@ -616,30 +496,22 @@ class TransformJob:
                 "than required RAW columns."
             )
 
-        actual_raw_columns = (
-            processed_columns[:raw_count]
-        )
+        actual_raw_columns = processed_columns[:raw_count]
 
-        if actual_raw_columns != (
-            raw_column_order
-        ):
+        if actual_raw_columns != (raw_column_order):
             raise ValueError(
                 "RAW column order validation failed. "
                 f"Expected={raw_column_order}, "
                 f"Actual={actual_raw_columns}"
             )
 
-        if len(processed_columns) != len(
-            set(processed_columns)
-        ):
+        if len(processed_columns) != len(set(processed_columns)):
             raise ValueError(
-                "Duplicate columns detected in final "
-                "processed DataFrame."
+                "Duplicate columns detected in final " "processed DataFrame."
             )
 
         logger.info(
-            "Final processed schema validation passed. "
-            "Total columns=%d",
+            "Final processed schema validation passed. " "Total columns=%d",
             len(processed_columns),
         )
 
@@ -708,9 +580,7 @@ def run_transform_job(
 def main() -> None:
 
     if len(sys.argv) != 2:
-        raise ValueError(
-            "Usage: transform_job.py <raw_input_path>"
-        )
+        raise ValueError("Usage: transform_job.py <raw_input_path>")
 
     input_path = sys.argv[1]
 
@@ -730,9 +600,7 @@ def main() -> None:
 
     finally:
 
-        logger.info(
-            "Stopping Spark session."
-        )
+        logger.info("Stopping Spark session.")
 
         spark.stop()
 

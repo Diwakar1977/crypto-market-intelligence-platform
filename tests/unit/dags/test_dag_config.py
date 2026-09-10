@@ -4,7 +4,6 @@ from datetime import timedelta
 
 from dags.config import dag_config
 
-
 # =====================================================================
 # DAG IDENTITY
 # =====================================================================
@@ -105,9 +104,7 @@ def test_dag_default_args() -> None:
 
     assert dag_config.DAG_DEFAULT_ARGS["retries"] == 2
 
-    assert dag_config.DAG_DEFAULT_ARGS["retry_delay"] == timedelta(
-        minutes=5
-    )
+    assert dag_config.DAG_DEFAULT_ARGS["retry_delay"] == timedelta(minutes=5)
 
 
 def test_dag_default_args_keys() -> None:
@@ -137,10 +134,7 @@ def test_aws_connection_id() -> None:
 def test_redshift_connection_id() -> None:
     """Redshift Airflow connection ID must be configured."""
 
-    assert (
-        dag_config.REDSHIFT_CONNECTION_ID
-        == "redshift_default"
-    )
+    assert dag_config.REDSHIFT_CONNECTION_ID == "redshift_default"
 
 
 # =====================================================================
@@ -186,9 +180,7 @@ def test_required_dag_configuration_exists() -> None:
     ]
 
     for attribute in required_attributes:
-        assert hasattr(dag_config, attribute), (
-            f"Missing DAG configuration: {attribute}"
-        )
+        assert hasattr(dag_config, attribute), f"Missing DAG configuration: {attribute}"
 
 
 # =====================================================================
@@ -247,4 +239,3 @@ def test_dag_configuration_types() -> None:
         dag_config.NOTIFICATION_ON_SUCCESS,
         bool,
     )
-

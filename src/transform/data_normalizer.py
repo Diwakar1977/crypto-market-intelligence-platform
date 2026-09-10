@@ -7,7 +7,6 @@ from pyspark.sql.functions import col, lit, round, trim, when
 
 from src.utils.logger import Logger
 
-
 logger = Logger.get_logger(
     "data_normalizer",
     "data_normalizer.log",
@@ -42,13 +41,9 @@ class DataNormalizer:
         "atl",
     )
 
-    POSITIVE_INTEGER_COLUMNS: ClassVar[tuple[str, ...]] = (
-        "market_cap_rank",
-    )
+    POSITIVE_INTEGER_COLUMNS: ClassVar[tuple[str, ...]] = ("market_cap_rank",)
 
-    RELATIONSHIP_VALIDATION_RULES: ClassVar[
-        tuple[tuple[str, str], ...]
-    ] = (
+    RELATIONSHIP_VALIDATION_RULES: ClassVar[tuple[tuple[str, str], ...]] = (
         ("high_24h", "low_24h"),
     )
 
@@ -77,9 +72,7 @@ class DataNormalizer:
     ) -> DataFrame:
         """Clean and normalize cryptocurrency market data."""
 
-        logger.info(
-            "Starting data normalization."
-        )
+        logger.info("Starting data normalization.")
 
         try:
             result = df
@@ -116,16 +109,12 @@ class DataNormalizer:
                 result,
             )
 
-            logger.info(
-                "Data normalization completed successfully."
-            )
+            logger.info("Data normalization completed successfully.")
 
             return result
 
         except Exception:
-            logger.exception(
-                "Unexpected error during data normalization."
-            )
+            logger.exception("Unexpected error during data normalization.")
             raise
 
     # =============================================================
@@ -138,9 +127,7 @@ class DataNormalizer:
     ) -> DataFrame:
 
         columns_to_drop = [
-            column
-            for column in self.DROP_COLUMNS
-            if column in df.columns
+            column for column in self.DROP_COLUMNS if column in df.columns
         ]
 
         if not columns_to_drop:
@@ -201,9 +188,7 @@ class DataNormalizer:
                 when(
                     col(column_name) == "",
                     lit(None),
-                ).otherwise(
-                    col(column_name)
-                ),
+                ).otherwise(col(column_name)),
             )
 
         return result
@@ -218,15 +203,12 @@ class DataNormalizer:
     ) -> DataFrame:
 
         columns = [
-            column
-            for column in self.DEDUPLICATE_COLUMNS
-            if column in df.columns
+            column for column in self.DEDUPLICATE_COLUMNS if column in df.columns
         ]
 
         if not columns:
             logger.warning(
-                "No deduplication columns found. "
-                "Duplicate removal skipped."
+                "No deduplication columns found. " "Duplicate removal skipped."
             )
             return df
 
@@ -238,9 +220,7 @@ class DataNormalizer:
 
         after_count = result.count()
 
-        duplicate_count = (
-            before_count - after_count
-        )
+        duplicate_count = before_count - after_count
 
         if duplicate_count > 0:
             logger.warning(
@@ -248,9 +228,7 @@ class DataNormalizer:
                 duplicate_count,
             )
         else:
-            logger.info(
-                "No duplicate records found."
-            )
+            logger.info("No duplicate records found.")
 
         return result
 
@@ -272,9 +250,7 @@ class DataNormalizer:
             if column_name not in result.columns:
                 continue
 
-            invalid_condition = (
-                col(column_name) < 0
-            )
+            invalid_condition = col(column_name) < 0
 
             invalid_count = result.filter(
                 invalid_condition,
@@ -292,15 +268,12 @@ class DataNormalizer:
                 when(
                     invalid_condition,
                     lit(None),
-                ).otherwise(
-                    col(column_name)
-                ),
+                ).otherwise(col(column_name)),
             )
 
         if affected_columns:
             logger.warning(
-                "Negative values replaced with NULL "
-                "in columns: %s",
+                "Negative values replaced with NULL " "in columns: %s",
                 affected_columns,
             )
 
@@ -324,9 +297,7 @@ class DataNormalizer:
             if column_name not in result.columns:
                 continue
 
-            invalid_condition = (
-                col(column_name) <= 0
-            )
+            invalid_condition = col(column_name) <= 0
 
             invalid_count = result.filter(
                 invalid_condition,
@@ -344,15 +315,12 @@ class DataNormalizer:
                 when(
                     invalid_condition,
                     lit(None),
-                ).otherwise(
-                    col(column_name)
-                ),
+                ).otherwise(col(column_name)),
             )
 
         if affected_columns:
             logger.warning(
-                "Invalid positive integer values replaced "
-                "with NULL in columns: %s",
+                "Invalid positive integer values replaced " "with NULL in columns: %s",
                 affected_columns,
             )
 
@@ -369,9 +337,7 @@ class DataNormalizer:
 
         result = df
 
-        for higher_column, lower_column in (
-            self.RELATIONSHIP_VALIDATION_RULES
-        ):
+        for higher_column, lower_column in self.RELATIONSHIP_VALIDATION_RULES:
 
             if (
                 higher_column not in result.columns
@@ -379,10 +345,7 @@ class DataNormalizer:
             ):
                 continue
 
-            invalid_condition = (
-                col(higher_column)
-                < col(lower_column)
-            )
+            invalid_condition = col(higher_column) < col(lower_column)
 
             invalid_count = result.filter(
                 invalid_condition,
@@ -392,8 +355,7 @@ class DataNormalizer:
                 continue
 
             logger.warning(
-                "Relationship violation found between "
-                "'%s' and '%s' in %d records.",
+                "Relationship violation found between " "'%s' and '%s' in %d records.",
                 higher_column,
                 lower_column,
                 invalid_count,
@@ -401,20 +363,20 @@ class DataNormalizer:
 
             result = result.select(
                 *[
-                    when(
-                        invalid_condition,
-                        lit(None),
+                    (
+                        when(
+                            invalid_condition,
+                            lit(None),
+                        )
+                        .otherwise(col(column_name))
+                        .alias(column_name)
+                        if column_name
+                        in {
+                            higher_column,
+                            lower_column,
+                        }
+                        else col(column_name)
                     )
-                    .otherwise(
-                        col(column_name)
-                    )
-                    .alias(column_name)
-                    if column_name
-                    in {
-                        higher_column,
-                        lower_column,
-                    }
-                    else col(column_name)
                     for column_name in result.columns
                 ]
             )
@@ -432,9 +394,7 @@ class DataNormalizer:
 
         result = df
 
-        for column_name, decimal_places in (
-            self.ROUNDING_RULES.items()
-        ):
+        for column_name, decimal_places in self.ROUNDING_RULES.items():
 
             if column_name not in result.columns:
                 continue
@@ -447,8 +407,6 @@ class DataNormalizer:
                 ),
             )
 
-        logger.info(
-            "Configured numeric columns rounded successfully."
-        )
+        logger.info("Configured numeric columns rounded successfully.")
 
         return result

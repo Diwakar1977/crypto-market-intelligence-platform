@@ -73,7 +73,7 @@ def test_fetch_market_data_invalid_response(
     """Test invalid CoinGecko API response format."""
 
     mock_response = MagicMock()
-    mock_response.json.return_value = { "error": "Invalid response" }
+    mock_response.json.return_value = {"error": "Invalid response"}
     mock_get.return_value = mock_response
 
     client = CoinGeckoClient()

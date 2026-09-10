@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +17,6 @@ from pyspark.sql.types import (
 from src.load.load_job import LoadJob
 from src.load.redshift_storage import RedshiftStorage
 
-
 # =====================================================================
 # SPARK FIXTURE
 # =====================================================================
@@ -27,8 +27,7 @@ def spark() -> Generator[SparkSession, None, None]:
     """Create one local Spark session for integration tests."""
 
     session = (
-        SparkSession.builder
-        .master("local[2]")
+        SparkSession.builder.master("local[2]")
         .appName("LoadJobIntegrationTest")
         .config("spark.ui.enabled", "false")
         .config("spark.sql.shuffle.partitions", "2")
@@ -179,9 +178,13 @@ def redshift_storage() -> MagicMock:
     No real Redshift connection is created.
     """
 
-    return MagicMock(
+    storage = MagicMock(
         spec=RedshiftStorage,
     )
+
+    storage.execute = MagicMock()
+
+    return storage
 
 
 # =====================================================================
@@ -201,18 +204,9 @@ def load_job(
         redshift_storage=redshift_storage,
         redshift_schema="public",
         redshift_table="crypto_market",
-        processed_spark_path=(
-            "s3a://test-bucket/"
-            "processed_data/crypto_market/"
-        ),
-        processed_s3_path=(
-            "s3://test-bucket/"
-            "processed_data/crypto_market/"
-        ),
-        redshift_iam_role=(
-            "arn:aws:iam::123456789012:"
-            "role/CryptoETL-Redshift-Role"
-        ),
+        processed_spark_path=("s3a://test-bucket/" "processed_data/crypto_market/"),
+        processed_s3_path=("s3://test-bucket/" "processed_data/crypto_market/"),
+        redshift_iam_role=("arn:aws:iam::123456789012:" "role/CryptoETL-Redshift-Role"),
     )
 
 
@@ -267,25 +261,9 @@ def test_load_job_end_to_end(
     No real AWS, S3, or Redshift resources are required.
     """
 
-    # =================================================================
-    # CREATE MOCK SPARK READER
-    # =================================================================
-
     mock_reader = create_mock_reader(
         processed_dataframe,
     )
-
-    # =================================================================
-    # PATCH SPARK READ PROPERTY
-    #
-    # IMPORTANT:
-    #
-    # spark.read is a SparkSession property backed by JVM objects.
-    # Patching spark.read.parquet directly can cause Py4J errors.
-    #
-    # Therefore patch the SparkSession.read property and return
-    # our completely mocked reader.
-    # =================================================================
 
     with patch.object(
         SparkSession,
@@ -294,10 +272,10 @@ def test_load_job_end_to_end(
             lambda self: mock_reader,
         ),
     ):
-
-        # =============================================================
-        # CAPTURE REDSHIFT SQL
-        # =============================================================
+        execute_mock = cast(
+            MagicMock,
+            load_job.redshift_storage.execute,
+        )
 
         execute_calls: list[str] = []
 
@@ -308,13 +286,7 @@ def test_load_job_end_to_end(
 
             execute_calls.append(sql)
 
-        load_job.redshift_storage.execute.side_effect = (
-            fake_execute
-        )
-
-        # =============================================================
-        # RUN LOAD JOB
-        # =============================================================
+        execute_mock.side_effect = fake_execute
 
         result = load_job.run()
 
@@ -323,8 +295,7 @@ def test_load_job_end_to_end(
     # =================================================================
 
     mock_reader.parquet.assert_called_once_with(
-        "s3a://test-bucket/"
-        "processed_data/crypto_market/"
+        "s3a://test-bucket/" "processed_data/crypto_market/"
     )
 
     # =================================================================
@@ -337,19 +308,13 @@ def test_load_job_end_to_end(
 
     assert result.table_name == "crypto_market"
 
-    assert result.source_path == (
-        "s3://test-bucket/"
-        "processed_data/crypto_market/"
-    )
+    assert result.source_path == ("s3://test-bucket/" "processed_data/crypto_market/")
 
     # =================================================================
     # VERIFY REDSHIFT EXECUTION COUNT
     # =================================================================
 
-    assert (
-        load_job.redshift_storage.execute.call_count
-        == 2
-    )
+    assert execute_mock.call_count == 2
 
     assert len(execute_calls) == 2
 
@@ -361,15 +326,9 @@ def test_load_job_end_to_end(
     # VERIFY CREATE TABLE SQL
     # =================================================================
 
-    assert (
-        "CREATE TABLE IF NOT EXISTS"
-        in create_table_sql.upper()
-    )
+    assert "CREATE TABLE IF NOT EXISTS" in create_table_sql.upper()
 
-    assert (
-        '"public"."crypto_market"'
-        in create_table_sql
-    )
+    assert '"public"."crypto_market"' in create_table_sql
 
     # =================================================================
     # VERIFY RAW COLUMNS
@@ -414,78 +373,38 @@ def test_load_job_end_to_end(
 
     assert '"name" VARCHAR' in create_table_sql
 
-    assert (
-        '"current_price" DOUBLE PRECISION'
-        in create_table_sql
-    )
+    assert '"current_price" DOUBLE PRECISION' in create_table_sql
 
-    assert (
-        '"market_cap" BIGINT'
-        in create_table_sql
-    )
+    assert '"market_cap" BIGINT' in create_table_sql
 
-    assert (
-        '"market_cap_rank" BIGINT'
-        in create_table_sql
-    )
+    assert '"market_cap_rank" BIGINT' in create_table_sql
 
-    assert (
-        '"high_24h" DOUBLE PRECISION'
-        in create_table_sql
-    )
+    assert '"high_24h" DOUBLE PRECISION' in create_table_sql
 
-    assert (
-        '"low_24h" DOUBLE PRECISION'
-        in create_table_sql
-    )
+    assert '"low_24h" DOUBLE PRECISION' in create_table_sql
 
-    assert (
-        '"price_change_percentage_24h" '
-        "DOUBLE PRECISION"
-        in create_table_sql
-    )
+    assert '"price_change_percentage_24h" ' "DOUBLE PRECISION" in create_table_sql
 
-    assert (
-        '"total_volume" DOUBLE PRECISION'
-        in create_table_sql
-    )
+    assert '"total_volume" DOUBLE PRECISION' in create_table_sql
 
-    assert (
-        '"last_updated" VARCHAR'
-        in create_table_sql
-    )
+    assert '"last_updated" VARCHAR' in create_table_sql
 
-    assert (
-        '"price_range_24h" DOUBLE PRECISION'
-        in create_table_sql
-    )
+    assert '"price_range_24h" DOUBLE PRECISION' in create_table_sql
 
-    assert (
-        '"price_change_direction" VARCHAR'
-        in create_table_sql
-    )
+    assert '"price_change_direction" VARCHAR' in create_table_sql
 
     # =================================================================
     # VERIFY COPY SQL
     # =================================================================
 
-    assert (
-        'COPY "public"."crypto_market"'
-        in copy_sql
-    )
+    assert 'COPY "public"."crypto_market"' in copy_sql
 
-    assert (
-        "FROM "
-        "'s3://test-bucket/"
-        "processed_data/crypto_market/'"
-        in copy_sql
-    )
+    assert "FROM " "'s3://test-bucket/" "processed_data/crypto_market/'" in copy_sql
 
     assert (
         "IAM_ROLE "
         "'arn:aws:iam::123456789012:"
-        "role/CryptoETL-Redshift-Role'"
-        in copy_sql
+        "role/CryptoETL-Redshift-Role'" in copy_sql
     )
 
     assert "FORMAT AS PARQUET" in copy_sql
@@ -523,21 +442,11 @@ def test_read_processed_schema(
             lambda self: mock_reader,
         ),
     ):
-
         schema = load_job._read_processed_schema()
 
-    # =================================================================
-    # VERIFY PARQUET READ
-    # =================================================================
-
     mock_reader.parquet.assert_called_once_with(
-        "s3a://test-bucket/"
-        "processed_data/crypto_market/"
+        "s3a://test-bucket/" "processed_data/crypto_market/"
     )
-
-    # =================================================================
-    # VERIFY SCHEMA
-    # =================================================================
 
     assert schema == processed_dataframe.schema
 
@@ -577,19 +486,9 @@ def test_generate_create_table_sql(
 
     assert isinstance(sql, str)
 
-    assert (
-        "CREATE TABLE IF NOT EXISTS"
-        in sql.upper()
-    )
+    assert "CREATE TABLE IF NOT EXISTS" in sql.upper()
 
-    assert (
-        '"public"."crypto_market"'
-        in sql
-    )
-
-    # =================================================================
-    # RAW TYPES
-    # =================================================================
+    assert '"public"."crypto_market"' in sql
 
     assert '"id" VARCHAR' in sql
 
@@ -597,60 +496,25 @@ def test_generate_create_table_sql(
 
     assert '"name" VARCHAR' in sql
 
-    assert (
-        '"current_price" DOUBLE PRECISION'
-        in sql
-    )
+    assert '"current_price" DOUBLE PRECISION' in sql
 
-    assert (
-        '"market_cap" BIGINT'
-        in sql
-    )
+    assert '"market_cap" BIGINT' in sql
 
-    assert (
-        '"market_cap_rank" BIGINT'
-        in sql
-    )
+    assert '"market_cap_rank" BIGINT' in sql
 
-    assert (
-        '"high_24h" DOUBLE PRECISION'
-        in sql
-    )
+    assert '"high_24h" DOUBLE PRECISION' in sql
 
-    assert (
-        '"low_24h" DOUBLE PRECISION'
-        in sql
-    )
+    assert '"low_24h" DOUBLE PRECISION' in sql
 
-    assert (
-        '"price_change_percentage_24h" '
-        "DOUBLE PRECISION"
-        in sql
-    )
+    assert '"price_change_percentage_24h" ' "DOUBLE PRECISION" in sql
 
-    assert (
-        '"total_volume" DOUBLE PRECISION'
-        in sql
-    )
+    assert '"total_volume" DOUBLE PRECISION' in sql
 
-    assert (
-        '"last_updated" VARCHAR'
-        in sql
-    )
+    assert '"last_updated" VARCHAR' in sql
 
-    # =================================================================
-    # FEATURE TYPES
-    # =================================================================
+    assert '"price_range_24h" DOUBLE PRECISION' in sql
 
-    assert (
-        '"price_range_24h" DOUBLE PRECISION'
-        in sql
-    )
-
-    assert (
-        '"price_change_direction" VARCHAR'
-        in sql
-    )
+    assert '"price_change_direction" VARCHAR' in sql
 
 
 # =====================================================================
@@ -667,23 +531,12 @@ def test_generate_copy_sql(
 
     assert isinstance(sql, str)
 
-    assert (
-        'COPY "public"."crypto_market"'
-        in sql
-    )
+    assert 'COPY "public"."crypto_market"' in sql
+
+    assert "FROM " "'s3://test-bucket/" "processed_data/crypto_market/'" in sql
 
     assert (
-        "FROM "
-        "'s3://test-bucket/"
-        "processed_data/crypto_market/'"
-        in sql
-    )
-
-    assert (
-        "IAM_ROLE "
-        "'arn:aws:iam::123456789012:"
-        "role/CryptoETL-Redshift-Role'"
-        in sql
+        "IAM_ROLE " "'arn:aws:iam::123456789012:" "role/CryptoETL-Redshift-Role'" in sql
     )
 
     assert "FORMAT AS PARQUET;" in sql
@@ -709,9 +562,12 @@ def test_create_target_table(
 
     load_job._create_target_table(sql)
 
-    load_job.redshift_storage.execute.assert_called_once_with(
-        sql,
+    execute_mock = cast(
+        MagicMock,
+        load_job.redshift_storage.execute,
     )
+
+    execute_mock.assert_called_once_with(sql)
 
 
 # =====================================================================
@@ -733,9 +589,12 @@ def test_load_data(
 
     load_job._load_data(sql)
 
-    load_job.redshift_storage.execute.assert_called_once_with(
-        sql,
+    execute_mock = cast(
+        MagicMock,
+        load_job.redshift_storage.execute,
     )
+
+    execute_mock.assert_called_once_with(sql)
 
 
 # =====================================================================
@@ -786,30 +645,83 @@ def test_load_job_configuration_empty_values(
 ) -> None:
     """Reject empty required configuration values."""
 
-    kwargs: dict[str, object] = {
-        "spark": spark,
-        "redshift_storage": redshift_storage,
-        "redshift_schema": "public",
-        "redshift_table": "crypto_market",
-        "processed_spark_path": (
-            "s3a://test-bucket/processed/"
-        ),
-        "processed_s3_path": (
-            "s3://test-bucket/processed/"
-        ),
-        "redshift_iam_role": (
-            "arn:aws:iam::123456789012:"
-            "role/TestRole"
-        ),
-    }
+    if field_name == "redshift_schema":
+        with pytest.raises(
+            ValueError,
+            match=expected_message,
+        ):
+            LoadJob(
+                spark=spark,
+                redshift_storage=redshift_storage,
+                redshift_schema=field_value,
+                redshift_table="crypto_market",
+                processed_spark_path=("s3a://test-bucket/processed/"),
+                processed_s3_path=("s3://test-bucket/processed/"),
+                redshift_iam_role=("arn:aws:iam::123456789012:" "role/TestRole"),
+            )
 
-    kwargs[field_name] = field_value
+    elif field_name == "redshift_table":
+        with pytest.raises(
+            ValueError,
+            match=expected_message,
+        ):
+            LoadJob(
+                spark=spark,
+                redshift_storage=redshift_storage,
+                redshift_schema="public",
+                redshift_table=field_value,
+                processed_spark_path=("s3a://test-bucket/processed/"),
+                processed_s3_path=("s3://test-bucket/processed/"),
+                redshift_iam_role=("arn:aws:iam::123456789012:" "role/TestRole"),
+            )
 
-    with pytest.raises(
-        ValueError,
-        match=expected_message,
-    ):
-        LoadJob(**kwargs)
+    elif field_name == "processed_spark_path":
+        with pytest.raises(
+            ValueError,
+            match=expected_message,
+        ):
+            LoadJob(
+                spark=spark,
+                redshift_storage=redshift_storage,
+                redshift_schema="public",
+                redshift_table="crypto_market",
+                processed_spark_path=field_value,
+                processed_s3_path=("s3://test-bucket/processed/"),
+                redshift_iam_role=("arn:aws:iam::123456789012:" "role/TestRole"),
+            )
+
+    elif field_name == "processed_s3_path":
+        with pytest.raises(
+            ValueError,
+            match=expected_message,
+        ):
+            LoadJob(
+                spark=spark,
+                redshift_storage=redshift_storage,
+                redshift_schema="public",
+                redshift_table="crypto_market",
+                processed_spark_path=("s3a://test-bucket/processed/"),
+                processed_s3_path=field_value,
+                redshift_iam_role=("arn:aws:iam::123456789012:" "role/TestRole"),
+            )
+
+    elif field_name == "redshift_iam_role":
+        with pytest.raises(
+            ValueError,
+            match=expected_message,
+        ):
+            LoadJob(
+                spark=spark,
+                redshift_storage=redshift_storage,
+                redshift_schema="public",
+                redshift_table="crypto_market",
+                processed_spark_path=("s3a://test-bucket/processed/"),
+                processed_s3_path=("s3://test-bucket/processed/"),
+                redshift_iam_role=field_value,
+            )
+
+    else:
+        pytest.fail(f"Unsupported field name: {field_name}")
 
 
 # =====================================================================
@@ -825,26 +737,16 @@ def test_invalid_processed_spark_path(
 
     with pytest.raises(
         ValueError,
-        match=(
-            "Processed Spark path must start "
-            "with 's3a://'."
-        ),
+        match=("Processed Spark path must start " "with 's3a://'."),
     ):
         LoadJob(
             spark=spark,
             redshift_storage=redshift_storage,
             redshift_schema="public",
             redshift_table="crypto_market",
-            processed_spark_path=(
-                "s3://test-bucket/processed/"
-            ),
-            processed_s3_path=(
-                "s3://test-bucket/processed/"
-            ),
-            redshift_iam_role=(
-                "arn:aws:iam::123456789012:"
-                "role/TestRole"
-            ),
+            processed_spark_path=("s3://test-bucket/processed/"),
+            processed_s3_path=("s3://test-bucket/processed/"),
+            redshift_iam_role=("arn:aws:iam::123456789012:" "role/TestRole"),
         )
 
 
@@ -861,26 +763,16 @@ def test_invalid_processed_s3_path(
 
     with pytest.raises(
         ValueError,
-        match=(
-            "Processed S3 path must start "
-            "with 's3://'."
-        ),
+        match=("Processed S3 path must start " "with 's3://'."),
     ):
         LoadJob(
             spark=spark,
             redshift_storage=redshift_storage,
             redshift_schema="public",
             redshift_table="crypto_market",
-            processed_spark_path=(
-                "s3a://test-bucket/processed/"
-            ),
-            processed_s3_path=(
-                "s3a://test-bucket/processed/"
-            ),
-            redshift_iam_role=(
-                "arn:aws:iam::123456789012:"
-                "role/TestRole"
-            ),
+            processed_spark_path=("s3a://test-bucket/processed/"),
+            processed_s3_path=("s3a://test-bucket/processed/"),
+            redshift_iam_role=("arn:aws:iam::123456789012:" "role/TestRole"),
         )
 
 
@@ -897,22 +789,15 @@ def test_invalid_redshift_iam_role(
 
     with pytest.raises(
         ValueError,
-        match=(
-            "Redshift IAM role must be a valid "
-            "IAM role ARN."
-        ),
+        match=("Redshift IAM role must be a valid " "IAM role ARN."),
     ):
         LoadJob(
             spark=spark,
             redshift_storage=redshift_storage,
             redshift_schema="public",
             redshift_table="crypto_market",
-            processed_spark_path=(
-                "s3a://test-bucket/processed/"
-            ),
-            processed_s3_path=(
-                "s3://test-bucket/processed/"
-            ),
+            processed_spark_path=("s3a://test-bucket/processed/"),
+            processed_s3_path=("s3://test-bucket/processed/"),
             redshift_iam_role="invalid-role",
         )
 
@@ -933,16 +818,9 @@ def test_copy_sql_escapes_single_quotes(
         redshift_storage=redshift_storage,
         redshift_schema="public",
         redshift_table="crypto_market",
-        processed_spark_path=(
-            "s3a://test-bucket/processed/"
-        ),
-        processed_s3_path=(
-            "s3://test-bucket/data/it's-safe/"
-        ),
-        redshift_iam_role=(
-            "arn:aws:iam::123456789012:"
-            "role/Test'Role"
-        ),
+        processed_spark_path=("s3a://test-bucket/processed/"),
+        processed_s3_path=("s3://test-bucket/data/it's-safe/"),
+        redshift_iam_role=("arn:aws:iam::123456789012:" "role/Test'Role"),
     )
 
     sql = job._generate_copy_sql()

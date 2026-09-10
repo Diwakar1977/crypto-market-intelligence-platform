@@ -1,16 +1,18 @@
-# Virtual environment
+# Python Virtual Environment
 venv/
-.venv/
 
-# Python cache
+# Python Cache / Compiled Files
 __pycache__/
 *.py[cod]
+*$py.class
 
-# Test / coverage
+# Test / Coverage Cache
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
 .coverage
+coverage.xml
 htmlcov/
 
 # Logs
@@ -18,19 +20,16 @@ htmlcov/
 logs/
 notebooks/logs/
 
-# Environment / secrets
-.env
-.env.*
+# Local and production configuration files
 config/local.yaml
 config/production.yaml
 
-# AWS CLI / generated files
+# AWS CLI / Local Generated Files
 aws/
 awscliv2.zip
 
-# Jupyter
+# Jupyter Notebook Checkpoints
 .ipynb_checkpoints/
 
-# OS
-.DS_Store
-Thumbs.db
+
+

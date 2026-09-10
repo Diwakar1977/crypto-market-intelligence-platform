@@ -48,61 +48,32 @@ def test_redshift_column_not_null() -> None:
 def test_map_data_type() -> None:
     """Test supported Spark-to-Redshift type mappings."""
 
-    assert (
-        RedshiftSchemaMapper.map_data_type(StringType())
-        == "VARCHAR(65535)"
-    )
+    assert RedshiftSchemaMapper.map_data_type(StringType()) == "VARCHAR(65535)"
 
-    assert (
-        RedshiftSchemaMapper.map_data_type(IntegerType())
-        == "INTEGER"
-    )
+    assert RedshiftSchemaMapper.map_data_type(IntegerType()) == "INTEGER"
 
-    assert (
-        RedshiftSchemaMapper.map_data_type(LongType())
-        == "BIGINT"
-    )
+    assert RedshiftSchemaMapper.map_data_type(LongType()) == "BIGINT"
 
-    assert (
-        RedshiftSchemaMapper.map_data_type(FloatType())
-        == "REAL"
-    )
+    assert RedshiftSchemaMapper.map_data_type(FloatType()) == "REAL"
 
-    assert (
-        RedshiftSchemaMapper.map_data_type(DoubleType())
-        == "DOUBLE PRECISION"
-    )
+    assert RedshiftSchemaMapper.map_data_type(DoubleType()) == "DOUBLE PRECISION"
 
-    assert (
-        RedshiftSchemaMapper.map_data_type(BooleanType())
-        == "BOOLEAN"
-    )
+    assert RedshiftSchemaMapper.map_data_type(BooleanType()) == "BOOLEAN"
 
-    assert (
-        RedshiftSchemaMapper.map_data_type(DateType())
-        == "DATE"
-    )
+    assert RedshiftSchemaMapper.map_data_type(DateType()) == "DATE"
 
-    assert (
-        RedshiftSchemaMapper.map_data_type(TimestampType())
-        == "TIMESTAMP"
-    )
+    assert RedshiftSchemaMapper.map_data_type(TimestampType()) == "TIMESTAMP"
 
 
 def test_map_complex_data_types() -> None:
     """Test Spark complex type mappings."""
 
     assert (
-        RedshiftSchemaMapper.map_data_type(
-            ArrayType(StringType())
-        )
-        == "VARCHAR(65535)"
+        RedshiftSchemaMapper.map_data_type(ArrayType(StringType())) == "VARCHAR(65535)"
     )
 
     assert (
-        RedshiftSchemaMapper.map_data_type(
-            MapType(StringType(), StringType())
-        )
+        RedshiftSchemaMapper.map_data_type(MapType(StringType(), StringType()))
         == "VARCHAR(65535)"
     )
 
@@ -164,19 +135,13 @@ def test_map_schema() -> None:
 def test_quote_identifier() -> None:
     """Test SQL identifier quoting."""
 
-    assert (
-        RedshiftSchemaMapper.quote_identifier("crypto_market")
-        == '"crypto_market"'
-    )
+    assert RedshiftSchemaMapper.quote_identifier("crypto_market") == '"crypto_market"'
 
 
 def test_quote_identifier_escapes_quotes() -> None:
     """Test SQL identifier quote escaping."""
 
-    assert (
-        RedshiftSchemaMapper.quote_identifier('coin"name')
-        == '"coin""name"'
-    )
+    assert RedshiftSchemaMapper.quote_identifier('coin"name') == '"coin""name"'
 
 
 def test_quote_identifier_rejects_empty_value() -> None:
@@ -208,10 +173,7 @@ def test_generate_columns_sql() -> None:
 
     result = RedshiftSchemaMapper.generate_columns_sql(schema)
 
-    expected = (
-        '  "id" VARCHAR(65535) NOT NULL,\n'
-        '  "price" DOUBLE PRECISION'
-    )
+    expected = '  "id" VARCHAR(65535) NOT NULL,\n' '  "price" DOUBLE PRECISION'
 
     assert result == expected
 
@@ -248,7 +210,7 @@ def test_generate_create_table_sql() -> None:
         '  "id" VARCHAR(65535) NOT NULL,\n'
         '  "price" DOUBLE PRECISION,\n'
         '  "market_cap" BIGINT\n'
-        ');'
+        ");"
     )
 
     assert result == expected
@@ -274,9 +236,7 @@ def test_generate_create_table_without_if_not_exists() -> None:
     )
 
     expected = (
-        'CREATE TABLE "public"."crypto_market" (\n'
-        '  "id" VARCHAR(65535)\n'
-        ');'
+        'CREATE TABLE "public"."crypto_market" (\n' '  "id" VARCHAR(65535)\n' ");"
     )
 
     assert result == expected
@@ -332,9 +292,7 @@ def test_validate_schema_rejects_invalid_schema() -> None:
         TypeError,
         match="schema must be a Spark StructType",
     ):
-        RedshiftSchemaMapper.validate_schema(
-            "invalid"  # type: ignore[arg-type]
-        )
+        RedshiftSchemaMapper.validate_schema("invalid")  # type: ignore[arg-type]
 
 
 def test_generate_create_table_requires_schema_name() -> None:

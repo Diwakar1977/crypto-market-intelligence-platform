@@ -7,15 +7,11 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from src.notifications.sns_notification import SNSNotification
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
 
-TOPIC_ARN = (
-    "arn:aws:sns:ap-south-1:"
-    "123456789012:crypto-etl"
-)
+TOPIC_ARN = "arn:aws:sns:ap-south-1:" "123456789012:crypto-etl"
 
 AWS_CONFIG = {
     "aws": {
@@ -98,9 +94,7 @@ def test_publish_success(
 
         message_id = sns.publish(
             subject="ETL Pipeline Success",
-            message=(
-                "Crypto ETL pipeline completed successfully."
-            ),
+            message=("Crypto ETL pipeline completed successfully."),
         )
 
     assert message_id == "test-message-id"
@@ -108,9 +102,7 @@ def test_publish_success(
     mock_boto_client.publish.assert_called_once_with(
         TopicArn=TOPIC_ARN,
         Subject="ETL Pipeline Success",
-        Message=(
-            "Crypto ETL pipeline completed successfully."
-        ),
+        Message=("Crypto ETL pipeline completed successfully."),
     )
 
 
@@ -333,9 +325,9 @@ def test_sns_client_initialization_error() -> None:
             "src.notifications.sns_notification.CONFIG",
             AWS_CONFIG,
         ),
-    ):
-        with pytest.raises(
+        pytest.raises(
             RuntimeError,
             match="Failed to initialize SNS client",
-        ):
-            SNSNotification()
+        ),
+    ):
+        SNSNotification()

@@ -8,7 +8,6 @@ import pytest
 
 from src.extract.extract_job import ExtractJob, ExtractResult
 
-
 # =====================================================================
 # TEST DATA
 # =====================================================================
@@ -78,10 +77,7 @@ def test_extract_job_end_to_end_with_local_storage(
         storage=storage,
     )
 
-    expected_s3_key = (
-        "raw_data/crypto_market/"
-        "crypto_market.ndjson"
-    )
+    expected_s3_key = "raw_data/crypto_market/" "crypto_market.ndjson"
 
     with patch(
         "src.extract.extract_job.PathBuilder.build_raw_path",
@@ -178,9 +174,7 @@ def test_extract_job_storage_failure(
 
     client.fetch_market_data.return_value = sample_records
 
-    storage.upload_file.side_effect = RuntimeError(
-        "Storage upload failed"
-    )
+    storage.upload_file.side_effect = RuntimeError("Storage upload failed")
 
     job = ExtractJob(
         client=client,
@@ -189,16 +183,12 @@ def test_extract_job_storage_failure(
 
     with patch(
         "src.extract.extract_job.PathBuilder.build_raw_path",
-        return_value=(
-            "raw_data/crypto_market/"
-            "crypto_market.ndjson"
-        ),
+        return_value=("raw_data/crypto_market/" "crypto_market.ndjson"),
+    ), pytest.raises(
+        RuntimeError,
+        match="Storage upload failed",
     ):
-        with pytest.raises(
-            RuntimeError,
-            match="Storage upload failed",
-        ):
-            job.run()
+        job.run()
 
     client.fetch_market_data.assert_called_once_with()
 
@@ -217,9 +207,7 @@ def test_extract_job_client_failure() -> None:
 
     storage = MagicMock()
 
-    client.fetch_market_data.side_effect = RuntimeError(
-        "CoinGecko API failed"
-    )
+    client.fetch_market_data.side_effect = RuntimeError("CoinGecko API failed")
 
     job = ExtractJob(
         client=client,
@@ -248,9 +236,7 @@ def test_extract_job_writes_valid_ndjson(
 ) -> None:
     """Verify ExtractJob creates valid NDJSON data."""
 
-    local_path = (
-        tmp_path / "crypto_market.ndjson"
-    )
+    local_path = tmp_path / "crypto_market.ndjson"
 
     ExtractJob._write_ndjson(
         records=sample_records,
@@ -265,10 +251,7 @@ def test_extract_job_writes_valid_ndjson(
 
     assert len(lines) == len(sample_records)
 
-    parsed_records = [
-        json.loads(line)
-        for line in lines
-    ]
+    parsed_records = [json.loads(line) for line in lines]
 
     assert parsed_records == sample_records
 
@@ -283,9 +266,7 @@ def test_extract_job_writes_empty_ndjson(
 ) -> None:
     """Verify an empty NDJSON file is created."""
 
-    local_path = (
-        tmp_path / "empty.ndjson"
-    )
+    local_path = tmp_path / "empty.ndjson"
 
     ExtractJob._write_ndjson(
         records=[],
@@ -319,9 +300,7 @@ def test_extract_job_preserves_unicode(
         },
     ]
 
-    local_path = (
-        tmp_path / "unicode.ndjson"
-    )
+    local_path = tmp_path / "unicode.ndjson"
 
     ExtractJob._write_ndjson(
         records=records,

@@ -16,7 +16,6 @@ class Logger:
 
     @staticmethod
     def get_logger(name: str, log_file: str):
-        
         """
         Create and return a configured application logger.
 
@@ -36,34 +35,24 @@ class Logger:
         log_level = runtime_config["log_level"]
         log_dir = runtime_config["log_dir"]
 
-        level = getattr(
-            logging,
-            str(log_level).upper(),
-            logging.INFO
-        )
+        level = getattr(logging, str(log_level).upper(), logging.INFO)
 
         logger.setLevel(level)
         logger.propagate = False
 
-        formatter = logging.Formatter(
-            fmt=Logger._FORMAT,
-            datefmt=Logger._DATE_FORMAT
-        )
+        formatter = logging.Formatter(fmt=Logger._FORMAT, datefmt=Logger._DATE_FORMAT)
 
         # Log directory
         log_directory = Path(str(log_dir))
-        log_directory.mkdir(
-            parents=True, 
-            exist_ok=True
-        )
+        log_directory.mkdir(parents=True, exist_ok=True)
 
-        log_path = log_directory/ log_file
+        log_path = log_directory / log_file
 
         file_handler = RotatingFileHandler(
             filename=log_path,
             maxBytes=10 * 1024 * 1024,
             backupCount=5,
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
         file_handler.setLevel(level)
@@ -71,7 +60,7 @@ class Logger:
 
         # Console handler
         console_handler = logging.StreamHandler(sys.stdout)
-        
+
         console_handler.setLevel(level)
         console_handler.setFormatter(formatter)
 
@@ -81,11 +70,8 @@ class Logger:
         return logger
 
     @staticmethod
-    def log_banner(
-        logger: logging.Logger,
-        message: str
-    ) -> None:
-        """"Write a formatted banner to the log."""
+    def log_banner(logger: logging.Logger, message: str) -> None:
+        """ "Write a formatted banner to the log."""
 
         separator = "=" * 70
 

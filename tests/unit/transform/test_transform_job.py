@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,7 +11,6 @@ from src.transform.transform_job import (
     create_transform_job,
     run_transform_job,
 )
-
 
 # ============================================================
 # TEST DATA
@@ -24,9 +24,7 @@ INPUT_PATH = (
 )
 
 PROCESSED_KEY = (
-    "processed_data/crypto_market/"
-    "year=2026/month=09/day=02/"
-    "time=210000/"
+    "processed_data/crypto_market/" "year=2026/month=09/day=02/" "time=210000/"
 )
 
 PROCESSED_PATH = (
@@ -59,6 +57,7 @@ FINAL_COLUMNS = RAW_COLUMNS + FEATURE_COLUMNS
 # CONFIG
 # ============================================================
 
+
 @pytest.fixture
 def mock_config() -> dict[str, dict[str, str]]:
     return {
@@ -75,8 +74,21 @@ def mock_config() -> dict[str, dict[str, str]]:
 # TRANSFORM JOB FIXTURE
 # ============================================================
 
+
 @pytest.fixture
-def transform_job() -> TransformJob:
+def transform_job() -> Any:
+    """
+    Create a TransformJob with mocked dependencies.
+
+    Any is intentional here.
+
+    TransformJob contains strongly typed production methods such as
+    Spark DataFrameReader.json(), while unit tests replace those
+    collaborators with MagicMock objects. Mypy otherwise sees the
+    production method signatures and rejects MagicMock attributes such
+    as return_value, side_effect, assert_called_once_with, etc.
+    """
+
     return TransformJob(
         spark=MagicMock(),
         schema_inferer=MagicMock(),
@@ -93,8 +105,9 @@ def transform_job() -> TransformJob:
 # COMMON PIPELINE
 # ============================================================
 
+
 def configure_pipeline(
-    transform_job: TransformJob,
+    transform_job: Any,
 ) -> tuple[
     MagicMock,
     MagicMock,
@@ -150,9 +163,7 @@ def configure_pipeline(
         "last_updated": "timestamp",
     }
 
-    transform_job.schema_inferer.infer.return_value = (
-        inferred_schema
-    )
+    transform_job.schema_inferer.infer.return_value = inferred_schema
 
     # --------------------------------------------------------
     # SCHEMA MANAGEMENT
@@ -169,9 +180,7 @@ def configure_pipeline(
         "last_updated": "timestamp",
     }
 
-    transform_job.schema_manager.normalize.return_value = (
-        normalized_schema
-    )
+    transform_job.schema_manager.normalize.return_value = normalized_schema
 
     transform_job.schema_manager.validate.return_value = None
 
@@ -182,9 +191,7 @@ def configure_pipeline(
     typed_df = MagicMock()
     typed_df.columns = RAW_COLUMNS.copy()
 
-    transform_job.schema_manager.apply_schema.return_value = (
-        typed_df
-    )
+    transform_job.schema_manager.apply_schema.return_value = typed_df
 
     # --------------------------------------------------------
     # DATA VALIDATION
@@ -195,9 +202,7 @@ def configure_pipeline(
         invalid_count=0,
     )
 
-    transform_job.data_validator.validate.return_value = (
-        validation_result
-    )
+    transform_job.data_validator.validate.return_value = validation_result
 
     # --------------------------------------------------------
     # DATA NORMALIZATION
@@ -206,9 +211,7 @@ def configure_pipeline(
     normalized_df = MagicMock()
     normalized_df.columns = RAW_COLUMNS.copy()
 
-    transform_job.data_normalizer.normalize.return_value = (
-        normalized_df
-    )
+    transform_job.data_normalizer.normalize.return_value = normalized_df
 
     # --------------------------------------------------------
     # FEATURE ENGINEERING
@@ -217,9 +220,7 @@ def configure_pipeline(
     processed_df = MagicMock()
     processed_df.columns = FINAL_COLUMNS.copy()
 
-    transform_job.feature_engineer.transform.return_value = (
-        processed_df
-    )
+    transform_job.feature_engineer.transform.return_value = processed_df
 
     # --------------------------------------------------------
     # ORDERED DATAFRAME
@@ -234,9 +235,7 @@ def configure_pipeline(
     # PATH
     # --------------------------------------------------------
 
-    transform_job.path_builder.build_processed_path.return_value = (
-        PROCESSED_KEY
-    )
+    transform_job.path_builder.build_processed_path.return_value = PROCESSED_KEY
 
     # --------------------------------------------------------
     # WRITE
@@ -256,8 +255,9 @@ def configure_pipeline(
 # _read_raw_data
 # ============================================================
 
+
 def test_read_raw_data_success(
-    transform_job: TransformJob,
+    transform_job: Any,
 ) -> None:
 
     expected_df = MagicMock()
@@ -274,7 +274,7 @@ def test_read_raw_data_success(
 
 
 def test_read_raw_data_empty_path(
-    transform_job: TransformJob,
+    transform_job: Any,
 ) -> None:
 
     with pytest.raises(
@@ -283,10 +283,13 @@ def test_read_raw_data_empty_path(
     ):
         transform_job._read_raw_data("")
 
+    transform_job.spark.read.json.assert_not_called()
+
 
 # ============================================================
 # ORIGINAL JSON COLUMN ORDER
 # ============================================================
+
 
 @patch("src.transform.transform_job.boto3.client")
 def test_get_original_json_column_order_success(
@@ -295,9 +298,7 @@ def test_get_original_json_column_order_success(
 
     body = MagicMock()
 
-    body.readline.return_value = (
-        b'{"name":"Bitcoin","id":"bitcoin","symbol":"btc"}\n'
-    )
+    body.readline.return_value = b'{"name":"Bitcoin","id":"bitcoin","symbol":"btc"}\n'
 
     s3 = MagicMock()
 
@@ -430,7 +431,7 @@ def test_get_original_json_column_order_non_object(
     mock_boto_client.return_value = s3
 
     with pytest.raises(
-        ValueError,
+        TypeError,
         match="First NDJSON record must be a JSON object",
     ):
         TransformJob._get_original_json_column_order(
@@ -443,6 +444,7 @@ def test_get_original_json_column_order_non_object(
 # ============================================================
 # SOURCE COLUMN VALIDATION
 # ============================================================
+
 
 def test_validate_source_columns_success() -> None:
 
@@ -458,7 +460,6 @@ def test_validate_source_columns_success() -> None:
 def test_validate_source_columns_failure() -> None:
 
     df = MagicMock()
-
     df.columns = RAW_COLUMNS[:-1]
 
     with pytest.raises(
@@ -474,6 +475,7 @@ def test_validate_source_columns_failure() -> None:
 # ============================================================
 # NORMALIZED COLUMN VALIDATION
 # ============================================================
+
 
 def test_validate_normalized_columns_success() -> None:
 
@@ -505,8 +507,9 @@ def test_validate_normalized_columns_failure() -> None:
 # ORDER PROCESSED COLUMNS
 # ============================================================
 
+
 def test_order_processed_columns_success(
-    transform_job: TransformJob,
+    transform_job: Any,
 ) -> None:
 
     processed_df = MagicMock()
@@ -544,7 +547,7 @@ def test_order_processed_columns_success(
 
 
 def test_order_processed_columns_empty(
-    transform_job: TransformJob,
+    transform_job: Any,
 ) -> None:
 
     processed_df = MagicMock()
@@ -563,6 +566,7 @@ def test_order_processed_columns_empty(
 # ============================================================
 # FINAL COLUMN VALIDATION
 # ============================================================
+
 
 def test_validate_final_columns_success() -> None:
 
@@ -596,19 +600,16 @@ def test_validate_final_columns_wrong_order() -> None:
 
     df = MagicMock()
 
-    df.columns = (
-        [
-            "symbol",
-            "id",
-            "name",
-            "current_price",
-            "market_cap",
-            "market_cap_rank",
-            "total_volume",
-            "last_updated",
-        ]
-        + FEATURE_COLUMNS
-    )
+    df.columns = [
+        "symbol",
+        "id",
+        "name",
+        "current_price",
+        "market_cap",
+        "market_cap_rank",
+        "total_volume",
+        "last_updated",
+    ] + FEATURE_COLUMNS
 
     with pytest.raises(
         ValueError,
@@ -651,6 +652,7 @@ def test_validate_final_columns_duplicate_columns() -> None:
 # VALIDATION RESULT
 # ============================================================
 
+
 def test_handle_validation_result_success() -> None:
 
     result = SimpleNamespace(
@@ -658,7 +660,12 @@ def test_handle_validation_result_success() -> None:
         invalid_count=0,
     )
 
-    TransformJob._handle_validation_result(result)
+    # Positional argument intentionally used here.
+    # The production method does not expose "result" as a
+    # keyword parameter.
+    TransformJob._handle_validation_result(
+        cast(Any, result),
+    )
 
 
 def test_handle_validation_result_failure() -> None:
@@ -672,15 +679,18 @@ def test_handle_validation_result_failure() -> None:
         ValueError,
         match=r"Data validation failed.*10",
     ):
-        TransformJob._handle_validation_result(result)
+        TransformJob._handle_validation_result(
+            cast(Any, result),
+        )
 
 
 # ============================================================
 # RUN - EMPTY INPUT
 # ============================================================
 
+
 def test_run_empty_input_path(
-    transform_job: TransformJob,
+    transform_job: Any,
 ) -> None:
 
     with pytest.raises(
@@ -696,13 +706,11 @@ def test_run_empty_input_path(
 # RUN - SUCCESS
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_success(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -752,10 +760,7 @@ def test_run_success(
 
     transform_job.schema_inferer.infer.assert_called_once()
 
-    records = (
-        transform_job.schema_inferer.infer
-        .call_args.args[0]
-    )
+    records = transform_job.schema_inferer.infer.call_args.args[0]
 
     assert len(records) == 1
     assert records[0]["id"] == "bitcoin"
@@ -778,9 +783,7 @@ def test_run_success(
 
     transform_job.schema_manager.apply_schema.assert_called_once_with(
         df=raw_df,
-        normalized_schema=(
-            transform_job.schema_manager.normalize.return_value
-        ),
+        normalized_schema=(transform_job.schema_manager.normalize.return_value),
     )
 
     # --------------------------------------------------------
@@ -839,23 +842,18 @@ def test_run_success(
     # FINAL COLUMNS
     # --------------------------------------------------------
 
-    assert (
-        processed_df.select.return_value.columns
-        == FINAL_COLUMNS
-    )
+    assert processed_df.select.return_value.columns == FINAL_COLUMNS
 
 
 # ============================================================
 # RUN - EMPTY RAW DATA
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_empty_raw_data(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -871,12 +869,11 @@ def test_run_empty_raw_data(
     with patch(
         "src.transform.transform_job.CONFIG",
         mock_config,
+    ), pytest.raises(
+        ValueError,
+        match="Raw input contains no records",
     ):
-        with pytest.raises(
-            ValueError,
-            match="Raw input contains no records",
-        ):
-            transform_job.run(INPUT_PATH)
+        transform_job.run(INPUT_PATH)
 
     transform_job.schema_inferer.infer.assert_not_called()
     transform_job.schema_manager.normalize.assert_not_called()
@@ -888,13 +885,11 @@ def test_run_empty_raw_data(
 # RUN - SOURCE COLUMN MISSING
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_source_column_missing(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -910,12 +905,11 @@ def test_run_source_column_missing(
     with patch(
         "src.transform.transform_job.CONFIG",
         mock_config,
+    ), pytest.raises(
+        ValueError,
+        match="Columns found in original NDJSON but missing",
     ):
-        with pytest.raises(
-            ValueError,
-            match="Columns found in original NDJSON but missing",
-        ):
-            transform_job.run(INPUT_PATH)
+        transform_job.run(INPUT_PATH)
 
     transform_job.schema_inferer.infer.assert_not_called()
     transform_job.schema_manager.normalize.assert_not_called()
@@ -926,13 +920,11 @@ def test_run_source_column_missing(
 # RUN - SCHEMA INFERENCE FAILURE
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_schema_inference_failure(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -953,19 +945,18 @@ def test_run_schema_inference_failure(
 
     transform_job.spark.read.json.return_value = raw_df
 
-    transform_job.schema_inferer.infer.side_effect = (
-        ValueError("schema inference failed")
+    transform_job.schema_inferer.infer.side_effect = ValueError(
+        "schema inference failed"
     )
 
     with patch(
         "src.transform.transform_job.CONFIG",
         mock_config,
+    ), pytest.raises(
+        ValueError,
+        match="schema inference failed",
     ):
-        with pytest.raises(
-            ValueError,
-            match="schema inference failed",
-        ):
-            transform_job.run(INPUT_PATH)
+        transform_job.run(INPUT_PATH)
 
     transform_job.schema_inferer.infer.assert_called_once()
     transform_job.schema_manager.normalize.assert_not_called()
@@ -977,13 +968,11 @@ def test_run_schema_inference_failure(
 # RUN - SCHEMA VALIDATION FAILURE
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_schema_validation_failure(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -991,19 +980,18 @@ def test_run_schema_validation_failure(
 
     configure_pipeline(transform_job)
 
-    transform_job.schema_manager.validate.side_effect = (
-        ValueError("schema validation failed")
+    transform_job.schema_manager.validate.side_effect = ValueError(
+        "schema validation failed"
     )
 
     with patch(
         "src.transform.transform_job.CONFIG",
         mock_config,
+    ), pytest.raises(
+        ValueError,
+        match="schema validation failed",
     ):
-        with pytest.raises(
-            ValueError,
-            match="schema validation failed",
-        ):
-            transform_job.run(INPUT_PATH)
+        transform_job.run(INPUT_PATH)
 
     transform_job.schema_inferer.infer.assert_called_once()
     transform_job.schema_manager.normalize.assert_called_once()
@@ -1018,13 +1006,11 @@ def test_run_schema_validation_failure(
 # RUN - DATA VALIDATION FAILURE
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_data_validation_failure(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -1037,19 +1023,16 @@ def test_run_data_validation_failure(
         invalid_count=10,
     )
 
-    transform_job.data_validator.validate.return_value = (
-        validation_result
-    )
+    transform_job.data_validator.validate.return_value = validation_result
 
     with patch(
         "src.transform.transform_job.CONFIG",
         mock_config,
+    ), pytest.raises(
+        ValueError,
+        match=r"Data validation failed.*10",
     ):
-        with pytest.raises(
-            ValueError,
-            match=r"Data validation failed.*10",
-        ):
-            transform_job.run(INPUT_PATH)
+        transform_job.run(INPUT_PATH)
 
     transform_job.data_validator.validate.assert_called_once()
 
@@ -1062,13 +1045,11 @@ def test_run_data_validation_failure(
 # RUN - NORMALIZATION FAILURE
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_normalization_failure(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -1076,19 +1057,18 @@ def test_run_normalization_failure(
 
     configure_pipeline(transform_job)
 
-    transform_job.data_normalizer.normalize.side_effect = (
-        RuntimeError("Normalization failed")
+    transform_job.data_normalizer.normalize.side_effect = RuntimeError(
+        "Normalization failed"
     )
 
     with patch(
         "src.transform.transform_job.CONFIG",
         mock_config,
+    ), pytest.raises(
+        RuntimeError,
+        match="Normalization failed",
     ):
-        with pytest.raises(
-            RuntimeError,
-            match="Normalization failed",
-        ):
-            transform_job.run(INPUT_PATH)
+        transform_job.run(INPUT_PATH)
 
     transform_job.data_normalizer.normalize.assert_called_once()
 
@@ -1100,13 +1080,11 @@ def test_run_normalization_failure(
 # RUN - FEATURE ENGINEERING FAILURE
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_feature_engineering_failure(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -1114,19 +1092,18 @@ def test_run_feature_engineering_failure(
 
     configure_pipeline(transform_job)
 
-    transform_job.feature_engineer.transform.side_effect = (
-        RuntimeError("Feature engineering failed")
+    transform_job.feature_engineer.transform.side_effect = RuntimeError(
+        "Feature engineering failed"
     )
 
     with patch(
         "src.transform.transform_job.CONFIG",
         mock_config,
+    ), pytest.raises(
+        RuntimeError,
+        match="Feature engineering failed",
     ):
-        with pytest.raises(
-            RuntimeError,
-            match="Feature engineering failed",
-        ):
-            transform_job.run(INPUT_PATH)
+        transform_job.run(INPUT_PATH)
 
     transform_job.data_normalizer.normalize.assert_called_once()
     transform_job.feature_engineer.transform.assert_called_once()
@@ -1138,13 +1115,11 @@ def test_run_feature_engineering_failure(
 # RUN - WRITE FAILURE
 # ============================================================
 
-@patch(
-    "src.transform.transform_job.TransformJob."
-    "_get_original_json_column_order"
-)
+
+@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
 def test_run_write_failure(
     mock_get_column_order: MagicMock,
-    transform_job: TransformJob,
+    transform_job: Any,
     mock_config: dict[str, dict[str, str]],
 ) -> None:
 
@@ -1152,19 +1127,18 @@ def test_run_write_failure(
 
     configure_pipeline(transform_job)
 
-    transform_job.parquet_writer.write.side_effect = (
-        RuntimeError("parquet write failed")
+    transform_job.parquet_writer.write.side_effect = RuntimeError(
+        "parquet write failed"
     )
 
     with patch(
         "src.transform.transform_job.CONFIG",
         mock_config,
+    ), pytest.raises(
+        RuntimeError,
+        match="parquet write failed",
     ):
-        with pytest.raises(
-            RuntimeError,
-            match="parquet write failed",
-        ):
-            transform_job.run(INPUT_PATH)
+        transform_job.run(INPUT_PATH)
 
     transform_job.parquet_writer.write.assert_called_once_with(
         df=transform_job.feature_engineer.transform.return_value.select.return_value,
@@ -1176,6 +1150,7 @@ def test_run_write_failure(
 # ============================================================
 # FACTORY
 # ============================================================
+
 
 @patch("src.transform.transform_job.ParquetWriter")
 @patch("src.transform.transform_job.PathBuilder")
@@ -1216,6 +1191,7 @@ def test_create_transform_job(
 # ============================================================
 # RUNNER
 # ============================================================
+
 
 @patch("src.transform.transform_job.create_transform_job")
 def test_run_transform_job(

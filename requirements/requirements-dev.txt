@@ -11,8 +11,14 @@ psycopg2-binary
 sqlalchemy
 pyarrow
 python-dotenv
-pyyaml
 PyYAML
 types-PyYAML
+
 pytest
 pytest-cov
+
+ruff 
+black
+mypy
+
+pytest

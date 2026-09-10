@@ -19,7 +19,6 @@ from src.load.load_job import (
 )
 from src.load.redshift_storage import RedshiftStorage
 
-
 # ============================================================
 # FIXTURES
 # ============================================================
@@ -62,16 +61,9 @@ def load_job(
         redshift_storage=redshift_storage,
         redshift_schema="analytics",
         redshift_table="crypto_market",
-        processed_spark_path=(
-            "s3a://crypto-bucket/processed/"
-        ),
-        processed_s3_path=(
-            "s3://crypto-bucket/processed/"
-        ),
-        redshift_iam_role=(
-            "arn:aws:iam::123456789012:role/"
-            "CryptoETL-Redshift-Role"
-        ),
+        processed_spark_path=("s3a://crypto-bucket/processed/"),
+        processed_s3_path=("s3://crypto-bucket/processed/"),
+        redshift_iam_role=("arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"),
     )
 
 
@@ -88,22 +80,12 @@ def test_load_job_initialization(
     assert load_job.redshift_schema == "analytics"
     assert load_job.redshift_table == "crypto_market"
 
-    assert (
-        load_job.processed_spark_path
-        == "s3a://crypto-bucket/processed/"
-    )
+    assert load_job.processed_spark_path == "s3a://crypto-bucket/processed/"
 
-    assert (
-        load_job.processed_s3_path
-        == "s3://crypto-bucket/processed/"
-    )
+    assert load_job.processed_s3_path == "s3://crypto-bucket/processed/"
 
-    assert (
-        load_job.redshift_iam_role
-        == (
-            "arn:aws:iam::123456789012:role/"
-            "CryptoETL-Redshift-Role"
-        )
+    assert load_job.redshift_iam_role == (
+        "arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"
     )
 
 
@@ -129,13 +111,9 @@ def test_read_processed_schema(
     ) as mock_validate:
         result = load_job._read_processed_schema()
 
-    spark.read.parquet.assert_called_once_with(
-        "s3a://crypto-bucket/processed/"
-    )
+    spark.read.parquet.assert_called_once_with("s3a://crypto-bucket/processed/")
 
-    mock_validate.assert_called_once_with(
-        processed_schema
-    )
+    mock_validate.assert_called_once_with(processed_schema)
 
     assert result == processed_schema
 
@@ -151,9 +129,7 @@ def test_generate_create_table_sql(
 ) -> None:
     """Test CREATE TABLE SQL generation."""
 
-    sql = load_job._generate_create_table_sql(
-        processed_schema
-    )
+    sql = load_job._generate_create_table_sql(processed_schema)
 
     assert "CREATE TABLE IF NOT EXISTS" in sql
     assert '"analytics"."crypto_market"' in sql
@@ -181,21 +157,12 @@ def test_generate_copy_sql(
 
     sql = load_job._generate_copy_sql()
 
-    assert (
-        'COPY "analytics"."crypto_market"'
-        in sql
-    )
+    assert 'COPY "analytics"."crypto_market"' in sql
+
+    assert "FROM 's3://crypto-bucket/processed/'" in sql
 
     assert (
-        "FROM 's3://crypto-bucket/processed/'"
-        in sql
-    )
-
-    assert (
-        "IAM_ROLE "
-        "'arn:aws:iam::123456789012:role/"
-        "CryptoETL-Redshift-Role'"
-        in sql
+        "IAM_ROLE " "'arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role'" in sql
     )
 
     assert "FORMAT AS PARQUET;" in sql
@@ -219,23 +186,16 @@ def test_run_success(
 
     spark.read.parquet.return_value = dataframe
 
-    with patch(
-        "src.load.load_job.RedshiftSchemaMapper.validate_schema"
-    ):
+    with patch("src.load.load_job.RedshiftSchemaMapper.validate_schema"):
         result = load_job.run()
 
     assert isinstance(result, LoadResult)
     assert result.success is True
     assert result.schema_name == "analytics"
     assert result.table_name == "crypto_market"
-    assert (
-        result.source_path
-        == "s3://crypto-bucket/processed/"
-    )
+    assert result.source_path == "s3://crypto-bucket/processed/"
 
-    spark.read.parquet.assert_called_once_with(
-        "s3a://crypto-bucket/processed/"
-    )
+    spark.read.parquet.assert_called_once_with("s3a://crypto-bucket/processed/")
 
     assert redshift_storage.execute.call_count == 2
 
@@ -275,18 +235,16 @@ def test_run_fails_when_create_table_fails(
 
     spark.read.parquet.return_value = dataframe
 
-    redshift_storage.execute.side_effect = RuntimeError(
-        "CREATE TABLE failed."
-    )
+    redshift_storage.execute.side_effect = RuntimeError("CREATE TABLE failed.")
 
-    with patch(
-        "src.load.load_job.RedshiftSchemaMapper.validate_schema"
-    ):
-        with pytest.raises(
+    with (
+        patch("src.load.load_job.RedshiftSchemaMapper.validate_schema"),
+        pytest.raises(
             RuntimeError,
             match="CREATE TABLE failed",
-        ):
-            load_job.run()
+        ),
+    ):
+        load_job.run()
 
     assert redshift_storage.execute.call_count == 1
 
@@ -309,14 +267,14 @@ def test_run_fails_when_copy_fails(
         RuntimeError("Redshift COPY failed."),
     ]
 
-    with patch(
-        "src.load.load_job.RedshiftSchemaMapper.validate_schema"
-    ):
-        with pytest.raises(
+    with (
+        patch("src.load.load_job.RedshiftSchemaMapper.validate_schema"),
+        pytest.raises(
             RuntimeError,
             match="Redshift COPY failed",
-        ):
-            load_job.run()
+        ),
+    ):
+        load_job.run()
 
     assert redshift_storage.execute.call_count == 2
 
@@ -393,15 +351,10 @@ def test_invalid_empty_configuration(
     configuration = {
         "redshift_schema": "analytics",
         "redshift_table": "crypto_market",
-        "processed_spark_path": (
-            "s3a://crypto-bucket/processed/"
-        ),
-        "processed_s3_path": (
-            "s3://crypto-bucket/processed/"
-        ),
+        "processed_spark_path": ("s3a://crypto-bucket/processed/"),
+        "processed_s3_path": ("s3://crypto-bucket/processed/"),
         "redshift_iam_role": (
-            "arn:aws:iam::123456789012:role/"
-            "CryptoETL-Redshift-Role"
+            "arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"
         ),
     }
 
@@ -434,12 +387,9 @@ def test_invalid_processed_spark_path(
             redshift_schema="analytics",
             redshift_table="crypto_market",
             processed_spark_path="/local/processed/",
-            processed_s3_path=(
-                "s3://crypto-bucket/processed/"
-            ),
+            processed_s3_path=("s3://crypto-bucket/processed/"),
             redshift_iam_role=(
-                "arn:aws:iam::123456789012:role/"
-                "CryptoETL-Redshift-Role"
+                "arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"
             ),
         )
 
@@ -459,13 +409,10 @@ def test_invalid_processed_s3_path(
             redshift_storage=redshift_storage,
             redshift_schema="analytics",
             redshift_table="crypto_market",
-            processed_spark_path=(
-                "s3a://crypto-bucket/processed/"
-            ),
+            processed_spark_path=("s3a://crypto-bucket/processed/"),
             processed_s3_path="/local/processed/",
             redshift_iam_role=(
-                "arn:aws:iam::123456789012:role/"
-                "CryptoETL-Redshift-Role"
+                "arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"
             ),
         )
 
@@ -485,12 +432,8 @@ def test_invalid_iam_role(
             redshift_storage=redshift_storage,
             redshift_schema="analytics",
             redshift_table="crypto_market",
-            processed_spark_path=(
-                "s3a://crypto-bucket/processed/"
-            ),
-            processed_s3_path=(
-                "s3://crypto-bucket/processed/"
-            ),
+            processed_spark_path=("s3a://crypto-bucket/processed/"),
+            processed_s3_path=("s3://crypto-bucket/processed/"),
             redshift_iam_role="invalid-role",
         )
 
@@ -511,29 +454,16 @@ def test_create_load_job(
         redshift_storage=redshift_storage,
         redshift_schema="analytics",
         redshift_table="crypto_market",
-        processed_spark_path=(
-            "s3a://crypto-bucket/processed/"
-        ),
-        processed_s3_path=(
-            "s3://crypto-bucket/processed/"
-        ),
-        redshift_iam_role=(
-            "arn:aws:iam::123456789012:role/"
-            "CryptoETL-Redshift-Role"
-        ),
+        processed_spark_path=("s3a://crypto-bucket/processed/"),
+        processed_s3_path=("s3://crypto-bucket/processed/"),
+        redshift_iam_role=("arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"),
     )
 
     assert isinstance(job, LoadJob)
     assert job.redshift_schema == "analytics"
     assert job.redshift_table == "crypto_market"
-    assert (
-        job.processed_spark_path
-        == "s3a://crypto-bucket/processed/"
-    )
-    assert (
-        job.processed_s3_path
-        == "s3://crypto-bucket/processed/"
-    )
+    assert job.processed_spark_path == "s3a://crypto-bucket/processed/"
+    assert job.processed_s3_path == "s3://crypto-bucket/processed/"
 
 
 # ============================================================
@@ -550,9 +480,7 @@ def test_run_load_job() -> None:
     expected_result = LoadResult(
         schema_name="analytics",
         table_name="crypto_market",
-        source_path=(
-            "s3://crypto-bucket/processed/"
-        ),
+        source_path=("s3://crypto-bucket/processed/"),
         success=True,
     )
 
@@ -574,10 +502,7 @@ def test_run_load_job() -> None:
             "workgroup": "crypto-workgroup",
             "schema": "analytics",
             "table": "crypto_market",
-            "iam_role": (
-                "arn:aws:iam::123456789012:role/"
-                "CryptoETL-Redshift-Role"
-            ),
+            "iam_role": ("arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"),
         },
     }
 
@@ -618,16 +543,9 @@ def test_run_load_job() -> None:
         redshift_storage=mock_storage,
         redshift_schema="analytics",
         redshift_table="crypto_market",
-        processed_spark_path=(
-            "s3a://crypto-bucket/processed/"
-        ),
-        processed_s3_path=(
-            "s3://crypto-bucket/processed/"
-        ),
-        redshift_iam_role=(
-            "arn:aws:iam::123456789012:role/"
-            "CryptoETL-Redshift-Role"
-        ),
+        processed_spark_path=("s3a://crypto-bucket/processed/"),
+        processed_s3_path=("s3://crypto-bucket/processed/"),
+        redshift_iam_role=("arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"),
     )
 
     mock_job.run.assert_called_once_with()

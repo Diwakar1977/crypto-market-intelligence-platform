@@ -13,7 +13,6 @@ from src.extract.extract_job import (
     run_extract_job,
 )
 
-
 # ---------------------------------------------------------------------------
 # FIXTURES
 # ---------------------------------------------------------------------------
@@ -91,9 +90,7 @@ def test_run_success(
     assert isinstance(result, ExtractResult)
 
     # Verify result values
-    assert result.s3_key == (
-        "raw/crypto_market/2026-09-01/data.ndjson"
-    )
+    assert result.s3_key == ("raw/crypto_market/2026-09-01/data.ndjson")
 
     assert result.record_count == 2
 
@@ -106,9 +103,7 @@ def test_run_success(
     # Verify upload arguments
     upload_call = mock_storage.upload_file.call_args
 
-    assert upload_call.kwargs["s3_key"] == (
-        "raw/crypto_market/2026-09-01/data.ndjson"
-    )
+    assert upload_call.kwargs["s3_key"] == ("raw/crypto_market/2026-09-01/data.ndjson")
 
     # Temporary file should have been passed
     local_path = upload_call.kwargs["local_path"]
@@ -143,13 +138,11 @@ def test_run_with_empty_records(
                 "bucket": "test-bucket",
             },
         },
+    ), pytest.raises(
+        ValueError,
+        match="CoinGecko returned zero records",
     ):
-
-        with pytest.raises(
-            ValueError,
-            match="CoinGecko returned zero records",
-        ):
-            extract_job.run()
+        extract_job.run()
 
     # CoinGecko should still be called
     mock_client.fetch_market_data.assert_called_once()
@@ -170,9 +163,7 @@ def test_run_when_client_fails(
 ) -> None:
     """Test that client exceptions are propagated."""
 
-    mock_client.fetch_market_data.side_effect = RuntimeError(
-        "CoinGecko API failed"
-    )
+    mock_client.fetch_market_data.side_effect = RuntimeError("CoinGecko API failed")
 
     with pytest.raises(
         RuntimeError,
@@ -209,9 +200,7 @@ def test_run_when_s3_upload_fails(
 
     mock_client.fetch_market_data.return_value = records
 
-    mock_storage.upload_file.side_effect = RuntimeError(
-        "S3 upload failed"
-    )
+    mock_storage.upload_file.side_effect = RuntimeError("S3 upload failed")
 
     with patch(
         "src.extract.extract_job.CONFIG",
@@ -226,13 +215,11 @@ def test_run_when_s3_upload_fails(
     ), patch(
         "src.extract.extract_job.PathBuilder.build_raw_path",
         return_value="raw/crypto_market/2026-09-01/data.ndjson",
+    ), pytest.raises(
+        RuntimeError,
+        match="S3 upload failed",
     ):
-
-        with pytest.raises(
-            RuntimeError,
-            match="S3 upload failed",
-        ):
-            extract_job.run()
+        extract_job.run()
 
     # Client should be called once
     mock_client.fetch_market_data.assert_called_once()
@@ -273,9 +260,7 @@ def test_write_ndjson(tmp_path: Path) -> None:
     assert local_path.exists()
 
     # Read file
-    lines = local_path.read_text(
-        encoding="utf-8"
-    ).splitlines()
+    lines = local_path.read_text(encoding="utf-8").splitlines()
 
     # Two records = two lines
     assert len(lines) == 2
@@ -310,9 +295,7 @@ def test_write_ndjson_with_unicode(
     )
 
     # Read file
-    content = local_path.read_text(
-        encoding="utf-8"
-    )
+    content = local_path.read_text(encoding="utf-8")
 
     # Unicode should remain unchanged
     assert "Bitcoin ₹" in content
@@ -339,9 +322,7 @@ def test_create_extract_job() -> None:
                 "bucket": "test-bucket",
             },
         },
-    ), patch(
-        "src.extract.extract_job.CoinGeckoClient"
-    ) as mock_client_class, patch(
+    ), patch("src.extract.extract_job.CoinGeckoClient") as mock_client_class, patch(
         "src.extract.extract_job.S3Storage"
     ) as mock_storage_class:
 
@@ -391,9 +372,7 @@ def test_run_extract_job() -> None:
     # Verify returned result
     assert isinstance(result, ExtractResult)
 
-    assert result.s3_key == (
-        "raw/crypto_market/2026-09-01/data.ndjson"
-    )
+    assert result.s3_key == ("raw/crypto_market/2026-09-01/data.ndjson")
 
     assert result.record_count == 100
 

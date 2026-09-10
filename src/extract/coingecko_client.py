@@ -40,14 +40,10 @@ class CoinGeckoClient:
             data = response.json()
 
             if not isinstance(data, list):
-                raise TypeError(
-                    "Unexpected CoinGecko API response format"
-                )
+                raise TypeError("Unexpected CoinGecko API response format")
 
             if not data:
-                raise ValueError(
-                    "CoinGecko API returned empty response"
-                )
+                raise ValueError("CoinGecko API returned empty response")
 
             logger.info(
                 "CoinGecko API extraction successful: %d records",
@@ -57,13 +53,9 @@ class CoinGeckoClient:
             return data
 
         except requests.RequestException:
-            logger.exception(
-                "CoinGecko API request failed"
-            )
+            logger.exception("CoinGecko API request failed")
             raise
 
         except (TypeError, ValueError):
-            logger.exception(
-                "Invalid CoinGecko API response"
-            )
+            logger.exception("Invalid CoinGecko API response")
             raise

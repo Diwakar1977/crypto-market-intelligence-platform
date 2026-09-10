@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from datetime import datetime, timezone
 
 import pytest
@@ -18,7 +19,7 @@ from src.transform.feature_engineer import FeatureEngineer
 
 
 @pytest.fixture(scope="session")
-def spark() -> SparkSession:
+def spark() -> Generator[SparkSession, None, None]:
     """Create SparkSession for feature engineering tests."""
 
     spark = SparkSessionFactory.create()
@@ -111,9 +112,7 @@ def test_validate_required_columns_success(
 ) -> None:
     """Validate that all required columns are present."""
 
-    feature_engineer._validate_required_columns(
-        sample_dataframe
-    )
+    feature_engineer._validate_required_columns(sample_dataframe)
 
 
 def test_validate_required_columns_failure(
@@ -137,9 +136,7 @@ def test_add_days_since_records(
 ) -> None:
     """Create days-since-ATH and days-since-ATL features."""
 
-    result = feature_engineer._add_days_since_records(
-        sample_dataframe
-    )
+    result = feature_engineer._add_days_since_records(sample_dataframe)
 
     assert "days_since_ath" in result.columns
     assert "days_since_atl" in result.columns
@@ -160,13 +157,9 @@ def test_add_daily_volatility(
 ) -> None:
     """Calculate daily price volatility."""
 
-    result = feature_engineer._add_daily_volatility(
-        sample_dataframe
-    )
+    result = feature_engineer._add_daily_volatility(sample_dataframe)
 
-    row = result.select(
-        "daily_volatility_percentage"
-    ).first()
+    row = result.select("daily_volatility_percentage").first()
 
     assert row is not None
     assert row["daily_volatility_percentage"] == 0.11
@@ -178,13 +171,9 @@ def test_add_distance_from_ath(
 ) -> None:
     """Calculate distance from all-time high."""
 
-    result = feature_engineer._add_distance_from_ath(
-        sample_dataframe
-    )
+    result = feature_engineer._add_distance_from_ath(sample_dataframe)
 
-    row = result.select(
-        "distance_from_ath"
-    ).first()
+    row = result.select("distance_from_ath").first()
 
     assert row is not None
     assert row["distance_from_ath"] == 0.25
@@ -196,13 +185,9 @@ def test_add_distance_from_atl(
 ) -> None:
     """Calculate distance from all-time low."""
 
-    result = feature_engineer._add_distance_from_atl(
-        sample_dataframe
-    )
+    result = feature_engineer._add_distance_from_atl(sample_dataframe)
 
-    row = result.select(
-        "distance_from_atl"
-    ).first()
+    row = result.select("distance_from_atl").first()
 
     assert row is not None
     assert row["distance_from_atl"] == -89.0
@@ -214,13 +199,9 @@ def test_add_volume_market_cap_ratio(
 ) -> None:
     """Calculate volume-to-market-cap ratio."""
 
-    result = feature_engineer._add_volume_market_cap_ratio(
-        sample_dataframe
-    )
+    result = feature_engineer._add_volume_market_cap_ratio(sample_dataframe)
 
-    row = result.select(
-        "volume_market_cap_ratio"
-    ).first()
+    row = result.select("volume_market_cap_ratio").first()
 
     assert row is not None
     assert row["volume_market_cap_ratio"] == 0.0294
@@ -232,13 +213,9 @@ def test_add_supply_utilization(
 ) -> None:
     """Calculate circulating supply utilization."""
 
-    result = feature_engineer._add_supply_utilization(
-        sample_dataframe
-    )
+    result = feature_engineer._add_supply_utilization(sample_dataframe)
 
-    row = result.select(
-        "supply_utilization_pct"
-    ).first()
+    row = result.select("supply_utilization_pct").first()
 
     assert row is not None
     assert row["supply_utilization_pct"] == 0.9
@@ -250,13 +227,9 @@ def test_add_price_direction(
 ) -> None:
     """Classify positive price movement as UP."""
 
-    result = feature_engineer._add_price_direction(
-        sample_dataframe
-    )
+    result = feature_engineer._add_price_direction(sample_dataframe)
 
-    row = result.select(
-        "price_direction"
-    ).first()
+    row = result.select("price_direction").first()
 
     assert row is not None
     assert row["price_direction"] == "UP"
@@ -275,9 +248,7 @@ def test_price_direction_down(
 
     result = feature_engineer._add_price_direction(df)
 
-    row = result.select(
-        "price_direction"
-    ).first()
+    row = result.select("price_direction").first()
 
     assert row is not None
     assert row["price_direction"] == "DOWN"
@@ -296,9 +267,7 @@ def test_price_direction_flat(
 
     result = feature_engineer._add_price_direction(df)
 
-    row = result.select(
-        "price_direction"
-    ).first()
+    row = result.select("price_direction").first()
 
     assert row is not None
     assert row["price_direction"] == "FLAT"
@@ -310,9 +279,7 @@ def test_transform(
 ) -> None:
     """Create all configured feature columns."""
 
-    result = feature_engineer.transform(
-        sample_dataframe
-    )
+    result = feature_engineer.transform(sample_dataframe)
 
     for column_name in FeatureEngineer.FEATURE_COLUMNS:
         assert column_name in result.columns
@@ -324,17 +291,11 @@ def test_transform_preserves_original_columns(
 ) -> None:
     """Ensure original columns are preserved."""
 
-    original_columns = set(
-        sample_dataframe.columns
-    )
+    original_columns = set(sample_dataframe.columns)
 
-    result = feature_engineer.transform(
-        sample_dataframe
-    )
+    result = feature_engineer.transform(sample_dataframe)
 
-    assert original_columns.issubset(
-        set(result.columns)
-    )
+    assert original_columns.issubset(set(result.columns))
 
 
 def test_transform_creates_expected_feature_values(
@@ -343,9 +304,7 @@ def test_transform_creates_expected_feature_values(
 ) -> None:
     """Validate complete feature-engineering output."""
 
-    result = feature_engineer.transform(
-        sample_dataframe
-    )
+    result = feature_engineer.transform(sample_dataframe)
 
     row = result.select(
         "daily_volatility_percentage",

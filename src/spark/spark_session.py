@@ -5,7 +5,6 @@ from pyspark.sql import SparkSession
 from config.config import CONFIG
 from src.utils.logger import Logger
 
-
 logger = Logger.get_logger(
     "spark_session",
     "spark_session.log",
@@ -24,28 +23,15 @@ class SparkSessionFactory:
             spark_config = CONFIG["spark"]
             hadoop_config = CONFIG["hadoop"]
 
-            application_name = str(
-                application_config["name"]
-            )
-            master = str(
-                spark_config["master"]
-            )
-            driver_memory = str(
-                spark_config["driver_memory"]
-            )
-            executor_memory = str(
-                spark_config["executor_memory"]
-            )
-            shuffle_partitions = str(
-                spark_config["shuffle_partitions"]
-            )
-            aws_package = str(
-                hadoop_config["aws_package"]
-            )
+            application_name = str(application_config["name"])
+            master = str(spark_config["master"])
+            driver_memory = str(spark_config["driver_memory"])
+            executor_memory = str(spark_config["executor_memory"])
+            shuffle_partitions = str(spark_config["shuffle_partitions"])
+            aws_package = str(hadoop_config["aws_package"])
 
             spark_builder = (
-                SparkSession.builder
-                .appName(application_name)
+                SparkSession.builder.appName(application_name)
                 .master(master)
                 .config(
                     "spark.driver.memory",
@@ -90,6 +76,4 @@ class SparkSessionFactory:
                 "Failed to create SparkSession.",
             )
 
-            raise RuntimeError(
-                "Failed to create SparkSession."
-            ) from exc
+            raise RuntimeError("Failed to create SparkSession.") from exc

@@ -7,7 +7,6 @@ from typing import Any
 import boto3
 import yaml
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = PROJECT_ROOT / "config"
 
@@ -18,9 +17,7 @@ def _load_yaml_file(
     """Load configuration from a local YAML file."""
 
     if not config_path.exists():
-        raise FileNotFoundError(
-            f"Configuration file not found: {config_path}"
-        )
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
     with config_path.open(
         "r",
@@ -29,9 +26,7 @@ def _load_yaml_file(
         config = yaml.safe_load(file)
 
     if not isinstance(config, dict):
-        raise TypeError(
-            f"Invalid configuration format: {config_path}"
-        )
+        raise TypeError(f"Invalid configuration format: {config_path}")
 
     return config
 
@@ -47,8 +42,7 @@ def _load_s3_config() -> dict[str, Any]:
 
     if not bucket:
         raise ValueError(
-            "CONFIG_S3_BUCKET environment variable "
-            "is required for production."
+            "CONFIG_S3_BUCKET environment variable " "is required for production."
         )
 
     region = os.getenv(
@@ -66,17 +60,12 @@ def _load_s3_config() -> dict[str, Any]:
         Key=key,
     )
 
-    content = response["Body"].read().decode(
-        "utf-8"
-    )
+    content = response["Body"].read().decode("utf-8")
 
     config = yaml.safe_load(content)
 
     if not isinstance(config, dict):
-        raise TypeError(
-            f"Invalid configuration format: "
-            f"s3://{bucket}/{key}"
-        )
+        raise TypeError(f"Invalid configuration format: " f"s3://{bucket}/{key}")
 
     return config
 
@@ -84,26 +73,24 @@ def _load_s3_config() -> dict[str, Any]:
 def load_config() -> dict[str, Any]:
     """Load configuration based on the ENV variable."""
 
-    environment = os.getenv(
-        "ENV",
-        "local",
-    ).strip().lower()
+    environment = (
+        os.getenv(
+            "ENV",
+            "local",
+        )
+        .strip()
+        .lower()
+    )
 
     if environment == "local":
-        config_path = (
-            CONFIG_DIR / "local.yaml"
-        )
+        config_path = CONFIG_DIR / "local.yaml"
 
-        return _load_yaml_file(
-            config_path
-        )
+        return _load_yaml_file(config_path)
 
     if environment == "production":
         return _load_s3_config()
 
-    raise ValueError(
-        f"Unsupported ENV: {environment}"
-    )
+    raise ValueError(f"Unsupported ENV: {environment}")
 
 
 CONFIG = load_config()

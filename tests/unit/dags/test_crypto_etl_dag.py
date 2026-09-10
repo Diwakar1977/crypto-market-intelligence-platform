@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+from airflow.providers.standard.operators.python import PythonOperator
 
 from dags.crypto_etl_dag import (
     dag,
@@ -10,7 +11,6 @@ from dags.crypto_etl_dag import (
     execute_load,
     execute_local_transform,
 )
-
 
 # ============================================================
 # EXECUTE EXTRACT
@@ -59,9 +59,7 @@ def test_execute_local_transform(
     mock_spark = MagicMock()
     mock_spark_create.return_value = mock_spark
 
-    mock_run_transform_job.return_value = (
-        "processed/2026-09-05/"
-    )
+    mock_run_transform_job.return_value = "processed/2026-09-05/"
 
     task_instance = MagicMock()
 
@@ -86,10 +84,7 @@ def test_execute_local_transform(
 
     mock_run_transform_job.assert_called_once_with(
         spark=mock_spark,
-        input_path=(
-            "s3a://crypto-bucket/"
-            "raw/2026-09-05/crypto.json"
-        ),
+        input_path=("s3a://crypto-bucket/" "raw/2026-09-05/crypto.json"),
     )
 
     mock_spark.stop.assert_called_once_with()
@@ -164,9 +159,7 @@ def test_execute_local_transform_stops_spark_on_failure(
     mock_spark = MagicMock()
     mock_spark_create.return_value = mock_spark
 
-    mock_run_transform_job.side_effect = RuntimeError(
-        "Transformation failed"
-    )
+    mock_run_transform_job.side_effect = RuntimeError("Transformation failed")
 
     task_instance = MagicMock()
 
@@ -267,6 +260,12 @@ def test_dag_task_callables() -> None:
     extract_task = dag.get_task("extract")
     transform_task = dag.get_task("transform")
     load_task = dag.get_task("load")
+
+    # Narrow Airflow's BaseOperator | MappedOperator union
+    # to PythonOperator for mypy.
+    assert isinstance(extract_task, PythonOperator)
+    assert isinstance(transform_task, PythonOperator)
+    assert isinstance(load_task, PythonOperator)
 
     assert extract_task.python_callable == execute_extract
     assert transform_task.python_callable == execute_local_transform

@@ -40,9 +40,7 @@ class SNSNotification:
                 "Failed to initialize SNS client.",
             )
 
-            raise RuntimeError(
-                "Failed to initialize SNS client."
-            ) from exc
+            raise RuntimeError("Failed to initialize SNS client.") from exc
 
     def publish(
         self,
@@ -65,19 +63,13 @@ class SNSNotification:
         """
 
         if not self.topic_arn:
-            raise ValueError(
-                "SNS topic ARN is not configured."
-            )
+            raise ValueError("SNS topic ARN is not configured.")
 
         if not subject.strip():
-            raise ValueError(
-                "SNS notification subject cannot be empty."
-            )
+            raise ValueError("SNS notification subject cannot be empty.")
 
         if not message.strip():
-            raise ValueError(
-                "SNS notification message cannot be empty."
-            )
+            raise ValueError("SNS notification message cannot be empty.")
 
         logger.info(
             "Publishing SNS notification. subject=%s",
@@ -94,8 +86,7 @@ class SNSNotification:
             message_id = response["MessageId"]
 
             logger.info(
-                "SNS notification published successfully. "
-                "message_id=%s",
+                "SNS notification published successfully. " "message_id=%s",
                 message_id,
             )
 
@@ -107,6 +98,4 @@ class SNSNotification:
                 subject,
             )
 
-            raise RuntimeError(
-                "Failed to publish SNS notification."
-            ) from exc
+            raise RuntimeError("Failed to publish SNS notification.") from exc

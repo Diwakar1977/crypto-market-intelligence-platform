@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from airflow import DAG
 from airflow.providers.amazon.aws.operators.emr import (
@@ -36,7 +36,6 @@ from dags.tasks.emr_tasks import (
     wait_for_transform_step,
 )
 
-
 # ============================================================
 # CREATE EMR CLUSTER
 # ============================================================
@@ -53,7 +52,12 @@ def test_create_emr_cluster() -> None:
     assert task.aws_conn_id == "aws_default"
     assert task.region_name == AWS_REGION
 
-    overrides = task.job_flow_overrides
+    # Airflow's provider typing is broader than the actual
+    # EMR configuration returned by our task factory.
+    overrides = cast(
+        dict[str, Any],
+        task.job_flow_overrides,
+    )
 
     assert overrides["Name"] == EMR_CLUSTER_NAME
     assert overrides["ReleaseLabel"] == EMR_RELEASE
@@ -62,13 +66,21 @@ def test_create_emr_cluster() -> None:
         {"Name": "Spark"},
     ]
 
-    instances = overrides["Instances"]
+    instances = cast(
+        dict[str, Any],
+        overrides["Instances"],
+    )
 
     assert instances["Ec2SubnetId"] == EMR_SUBNET_ID
     assert instances["KeepJobFlowAliveWhenNoSteps"] is True
     assert instances["TerminationProtected"] is False
 
-    assert instances["InstanceGroups"][0] == {
+    instance_groups = cast(
+        list[dict[str, Any]],
+        instances["InstanceGroups"],
+    )
+
+    assert instance_groups[0] == {
         "Name": "Master",
         "Market": "ON_DEMAND",
         "InstanceRole": "MASTER",
@@ -76,7 +88,7 @@ def test_create_emr_cluster() -> None:
         "InstanceCount": 1,
     }
 
-    assert instances["InstanceGroups"][1] == {
+    assert instance_groups[1] == {
         "Name": "Core",
         "Market": "ON_DEMAND",
         "InstanceRole": "CORE",
@@ -107,10 +119,7 @@ def test_wait_for_emr_cluster() -> None:
     assert task.region_name == AWS_REGION
 
     assert task.job_flow_id == (
-        "{{ ti.xcom_pull("
-        "task_ids='create_emr_cluster', "
-        "key='return_value'"
-        ") }}"
+        "{{ ti.xcom_pull(" "task_ids='create_emr_cluster', " "key='return_value'" ") }}"
     )
 
     assert task.target_states == ["WAITING"]
@@ -138,22 +147,25 @@ def test_add_transform_step() -> None:
     assert task.region_name == AWS_REGION
 
     assert task.job_flow_id == (
-        "{{ ti.xcom_pull("
-        "task_ids='create_emr_cluster', "
-        "key='return_value'"
-        ") }}"
+        "{{ ti.xcom_pull(" "task_ids='create_emr_cluster', " "key='return_value'" ") }}"
     )
 
     assert len(task.steps) == 1
 
-    step: dict[str, Any] = task.steps[0]
+    step = cast(
+        dict[str, Any],
+        task.steps[0],
+    )
 
     assert step["Name"] == "crypto-market-transform"
 
-    # Must match production emr_tasks.py
+    # Must match production emr_tasks.py.
     assert step["ActionOnFailure"] == "CANCEL_AND_WAIT"
 
-    hadoop_step = step["HadoopJarStep"]
+    hadoop_step = cast(
+        dict[str, Any],
+        step["HadoopJarStep"],
+    )
 
     assert hadoop_step["Jar"] == "command-runner.jar"
 
@@ -161,20 +173,11 @@ def test_add_transform_step() -> None:
         "spark-submit",
         "--deploy-mode",
         "cluster",
-        (
-            f"s3://{S3_BUCKET}/"
-            "spark/jobs/transform_job.py"
-        ),
+        (f"s3://{S3_BUCKET}/" "spark/jobs/transform_job.py"),
         "--input",
-        (
-            f"s3://{S3_BUCKET}/"
-            f"{S3_RAW_PREFIX}"
-        ),
+        (f"s3://{S3_BUCKET}/" f"{S3_RAW_PREFIX}"),
         "--output",
-        (
-            f"s3://{S3_BUCKET}/"
-            f"{S3_PROCESSED_PREFIX}"
-        ),
+        (f"s3://{S3_BUCKET}/" f"{S3_PROCESSED_PREFIX}"),
     ]
 
 
@@ -195,10 +198,7 @@ def test_wait_for_transform_step() -> None:
     assert task.region_name == AWS_REGION
 
     assert task.job_flow_id == (
-        "{{ ti.xcom_pull("
-        "task_ids='create_emr_cluster', "
-        "key='return_value'"
-        ") }}"
+        "{{ ti.xcom_pull(" "task_ids='create_emr_cluster', " "key='return_value'" ") }}"
     )
 
     assert task.step_id == (
@@ -238,10 +238,7 @@ def test_terminate_emr_cluster() -> None:
     assert task.region_name == AWS_REGION
 
     assert task.job_flow_id == (
-        "{{ ti.xcom_pull("
-        "task_ids='create_emr_cluster', "
-        "key='return_value'"
-        ") }}"
+        "{{ ti.xcom_pull(" "task_ids='create_emr_cluster', " "key='return_value'" ") }}"
     )
 
     assert task.trigger_rule == TriggerRule.ALL_DONE

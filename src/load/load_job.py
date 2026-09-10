@@ -1,15 +1,13 @@
 from dataclasses import dataclass
 
-from config.config import CONFIG
-
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType
 
+from config.config import CONFIG
 from src.load.redshift_schema_mapper import RedshiftSchemaMapper
 from src.load.redshift_storage import RedshiftStorage
 from src.spark.spark_session import SparkSessionFactory
 from src.utils.logger import Logger
-
 
 logger = Logger.get_logger(
     "load_job",
@@ -80,37 +78,31 @@ class LoadJob:
             # ---------------------------------------------------------
             # STEP 1: READ PROCESSED SCHEMA
             # ---------------------------------------------------------
-            
+
             schema = self._read_processed_schema()
 
             # ---------------------------------------------------------
             # STEP 2: GENERATE CREATE TABLE SQL
             # ---------------------------------------------------------
-            
-            create_table_sql = (
-                self._generate_create_table_sql(
-                    schema
-                )
-            )
+
+            create_table_sql = self._generate_create_table_sql(schema)
 
             # ---------------------------------------------------------
             # STEP 3: CREATE REDSHIFT TABLE
             # ---------------------------------------------------------
-            
-            self._create_target_table(
-                create_table_sql
-            )
+
+            self._create_target_table(create_table_sql)
 
             # ---------------------------------------------------------
             # STEP 4: GENERATE COPY SQL
             # ---------------------------------------------------------
-            
+
             copy_sql = self._generate_copy_sql()
 
             # ---------------------------------------------------------
             # STEP 5: COPY DATA INTO REDSHIFT
             # ---------------------------------------------------------
-            
+
             self._load_data(copy_sql)
 
             Logger.log_banner(
@@ -152,19 +144,13 @@ class LoadJob:
             self.processed_spark_path,
         )
 
-        dataframe = self.spark.read.parquet(
-            self.processed_spark_path
-        )
+        dataframe = self.spark.read.parquet(self.processed_spark_path)
 
         schema = dataframe.schema
 
-        RedshiftSchemaMapper.validate_schema(
-            schema
-        )
+        RedshiftSchemaMapper.validate_schema(schema)
 
-        logger.info(
-            "Processed schema validated successfully."
-        )
+        logger.info("Processed schema validated successfully.")
 
         logger.info(
             "Detected processed columns: %d",
@@ -173,10 +159,7 @@ class LoadJob:
 
         logger.info(
             "Processed columns: %s",
-            ", ".join(
-                field.name
-                for field in schema.fields
-            ),
+            ", ".join(field.name for field in schema.fields),
         )
 
         return schema
@@ -192,22 +175,16 @@ class LoadJob:
             "GENERATE REDSHIFT TABLE SCHEMA",
         )
 
-        logger.info(
-            "Mapping Spark schema to Redshift schema."
+        logger.info("Mapping Spark schema to Redshift schema.")
+
+        sql = RedshiftSchemaMapper.generate_create_table_sql(
+            schema=schema,
+            schema_name=self.redshift_schema,
+            table_name=self.redshift_table,
+            if_not_exists=True,
         )
 
-        sql = (
-            RedshiftSchemaMapper.generate_create_table_sql(
-                schema=schema,
-                schema_name=self.redshift_schema,
-                table_name=self.redshift_table,
-                if_not_exists=True,
-            )
-        )
-
-        logger.info(
-            "Redshift CREATE TABLE SQL generated successfully."
-        )
+        logger.info("Redshift CREATE TABLE SQL generated successfully.")
 
         return sql
 
@@ -266,9 +243,7 @@ class LoadJob:
             f"FORMAT AS {self.PARQUET_FORMAT};"
         )
 
-        logger.info(
-            "Redshift COPY SQL generated successfully."
-        )
+        logger.info("Redshift COPY SQL generated successfully.")
 
         return sql
 
@@ -291,58 +266,34 @@ class LoadJob:
 
         self.redshift_storage.execute(sql)
 
-        logger.info(
-            "Processed data copied successfully to Redshift."
-        )
+        logger.info("Processed data copied successfully to Redshift.")
 
     def _validate_configuration(self) -> None:
         """Validate load job configuration."""
 
         if not self.redshift_schema.strip():
-            raise ValueError(
-                "Redshift schema name cannot be empty."
-            )
+            raise ValueError("Redshift schema name cannot be empty.")
 
         if not self.redshift_table.strip():
-            raise ValueError(
-                "Redshift table name cannot be empty."
-            )
+            raise ValueError("Redshift table name cannot be empty.")
 
         if not self.processed_spark_path.strip():
-            raise ValueError(
-                "Processed Spark path cannot be empty."
-            )
+            raise ValueError("Processed Spark path cannot be empty.")
 
-        if not self.processed_spark_path.startswith(
-            "s3a://"
-        ):
-            raise ValueError(
-                "Processed Spark path must start with 's3a://'."
-            )
+        if not self.processed_spark_path.startswith("s3a://"):
+            raise ValueError("Processed Spark path must start with 's3a://'.")
 
         if not self.processed_s3_path.strip():
-            raise ValueError(
-                "Processed S3 path cannot be empty."
-            )
+            raise ValueError("Processed S3 path cannot be empty.")
 
-        if not self.processed_s3_path.startswith(
-            "s3://"
-        ):
-            raise ValueError(
-                "Processed S3 path must start with 's3://'."
-            )
+        if not self.processed_s3_path.startswith("s3://"):
+            raise ValueError("Processed S3 path must start with 's3://'.")
 
         if not self.redshift_iam_role.strip():
-            raise ValueError(
-                "Redshift IAM role cannot be empty."
-            )
+            raise ValueError("Redshift IAM role cannot be empty.")
 
-        if not self.redshift_iam_role.startswith(
-            "arn:aws:iam::"
-        ):
-            raise ValueError(
-                "Redshift IAM role must be a valid IAM role ARN."
-            )
+        if not self.redshift_iam_role.startswith("arn:aws:iam::"):
+            raise ValueError("Redshift IAM role must be a valid IAM role ARN.")
 
 
 def create_load_job(
@@ -366,6 +317,7 @@ def create_load_job(
         redshift_iam_role=redshift_iam_role,
     )
 
+
 def run_load_job() -> LoadResult:
     """Create configuration, execute, and return the load result."""
 
@@ -373,58 +325,34 @@ def run_load_job() -> LoadResult:
     s3_config = CONFIG["s3"]
     aws_config = CONFIG["aws"]
 
-    bucket = str(
-        s3_config["bucket"]
-    ).strip()
+    bucket = str(s3_config["bucket"]).strip()
 
-    processed_prefix = str(
-        s3_config["processed_prefix"]
-    ).strip()
+    processed_prefix = str(s3_config["processed_prefix"]).strip()
 
-    processed_spark_path = (
-        f"s3a://{bucket}/{processed_prefix}"
-    )
+    processed_spark_path = f"s3a://{bucket}/{processed_prefix}"
 
-    processed_s3_path = (
-        f"s3://{bucket}/{processed_prefix}"
-    )
+    processed_s3_path = f"s3://{bucket}/{processed_prefix}"
 
     spark = SparkSessionFactory.create()
     redshift_storage: RedshiftStorage | None = None
 
     try:
         redshift_storage = RedshiftStorage(
-            host=str(
-                redshift_config["host"]
-            ),
-            port=int(
-                redshift_config["port"]
-            ),
-            database=str(
-                redshift_config["database"]
-            ),
-            aws_region=str(
-                aws_config["region"]
-            ),
-            workgroup=str(
-                redshift_config["workgroup"]
-            ),
+            host=str(redshift_config["host"]),
+            port=int(redshift_config["port"]),
+            database=str(redshift_config["database"]),
+            aws_region=str(aws_config["region"]),
+            workgroup=str(redshift_config["workgroup"]),
         )
 
         job = create_load_job(
             spark=spark,
             redshift_storage=redshift_storage,
-            redshift_schema=str(
-                redshift_config["schema"]
-            ),
-            redshift_table=str(
-                redshift_config["table"]
-            ),
+            redshift_schema=str(redshift_config["schema"]),
+            redshift_table=str(redshift_config["table"]),
             processed_spark_path=processed_spark_path,
             processed_s3_path=processed_s3_path,
-            redshift_iam_role=str(
-                redshift_config["iam_role"]
-            ),
+            redshift_iam_role=str(redshift_config["iam_role"]),
         )
 
         return job.run()

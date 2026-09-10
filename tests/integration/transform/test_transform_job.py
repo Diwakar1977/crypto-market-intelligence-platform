@@ -3,19 +3,33 @@ from __future__ import annotations
 import json
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any, TypedDict
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 
 from src.schema.schema_inferer import SchemaInferer
 from src.schema.schema_manager import SchemaManager
+from src.spark.spark_session import SparkSessionFactory
 from src.storage.parquet_writer import ParquetWriter
 from src.storage.path_builder import PathBuilder
 from src.transform.data_normalizer import DataNormalizer
 from src.transform.data_validator import DataValidator
 from src.transform.feature_engineer import FeatureEngineer
 from src.transform.transform_job import TransformJob
+
+# =====================================================================
+# TYPES
+# =====================================================================
+
+
+class CapturedWrite(TypedDict):
+    """Captured ParquetWriter.write arguments."""
+
+    df: DataFrame
+    output_path: str
+    mode: str
 
 
 # =====================================================================
@@ -25,18 +39,9 @@ from src.transform.transform_job import TransformJob
 
 @pytest.fixture(scope="module")
 def spark() -> Generator[SparkSession, None, None]:
-    """Create one local Spark session for integration tests."""
+    """Create one application-configured Spark session."""
 
-    session = (
-        SparkSession.builder
-        .master("local[2]")
-        .appName("TransformJobIntegrationTest")
-        .config("spark.ui.enabled", "false")
-        .config("spark.sql.shuffle.partitions", "2")
-        .config("spark.driver.bindAddress", "127.0.0.1")
-        .config("spark.driver.host", "127.0.0.1")
-        .getOrCreate()
-    )
+    session = SparkSessionFactory.create()
 
     yield session
 
@@ -49,18 +54,8 @@ def spark() -> Generator[SparkSession, None, None]:
 
 
 @pytest.fixture
-def sample_records() -> list[dict[str, object]]:
-    """
-    Return complete realistic CoinGecko-style raw records.
-
-    IMPORTANT:
-    These records contain every column required by:
-        - DataValidator
-        - FeatureEngineer
-
-    Dictionary order intentionally represents the original
-    CoinGecko API / NDJSON column order.
-    """
+def sample_records() -> list[dict[str, Any]]:
+    """Return realistic CoinGecko-style raw records."""
 
     return [
         {
@@ -119,15 +114,15 @@ def sample_records() -> list[dict[str, object]]:
 
 
 # =====================================================================
-# WRITE LOCAL NDJSON
+# WRITE NDJSON
 # =====================================================================
 
 
 def write_ndjson(
     file_path: Path,
-    records: list[dict[str, object]],
+    records: list[dict[str, Any]],
 ) -> None:
-    """Write test records as NDJSON."""
+    """Write records as NDJSON."""
 
     content = "\n".join(
         json.dumps(
@@ -167,39 +162,16 @@ def transform_job(
 
 
 # =====================================================================
-# COMPLETE TRANSFORM JOB
+# END-TO-END TRANSFORM TEST
 # =====================================================================
 
 
 def test_transform_job_end_to_end(
     transform_job: TransformJob,
-    sample_records: list[dict[str, object]],
+    sample_records: list[dict[str, Any]],
     tmp_path: Path,
 ) -> None:
-    """
-    Integration test for the complete TransformJob pipeline.
-
-    Real:
-        - Spark
-        - Spark JSON reader
-        - SchemaInferer
-        - SchemaManager
-        - DataValidator
-        - DataNormalizer
-        - FeatureEngineer
-        - column ordering
-
-    Mocked:
-        - original S3 column-order lookup
-        - ParquetWriter.write
-        - CONFIG
-
-    No real AWS/S3 resources are used.
-    """
-
-    # =================================================================
-    # CREATE REAL LOCAL RAW NDJSON
-    # =================================================================
+    """Verify the complete local TransformJob flow."""
 
     raw_file = tmp_path / "crypto_market.ndjson"
 
@@ -208,28 +180,11 @@ def test_transform_job_end_to_end(
         records=sample_records,
     )
 
-    # Spark reads the real local NDJSON file.
     raw_input_path = raw_file.as_uri()
 
-    # =================================================================
-    # EXPECTED OUTPUT
-    # =================================================================
-
     expected_processed_path = (
-        "s3a://test-bucket/"
-        "processed_data/crypto_market/"
-        "crypto_market.parquet"
+        "s3a://test-bucket/" "processed_data/crypto_market/" "crypto_market.parquet"
     )
-
-    # =================================================================
-    # ORIGINAL RAW COLUMN ORDER
-    # =================================================================
-
-    # IMPORTANT:
-    # This must match the order in sample_records exactly.
-    #
-    # Feature-engineered columns are NOT included here.
-    # They must appear after these raw columns.
 
     expected_raw_columns = [
         "id",
@@ -258,165 +213,91 @@ def test_transform_job_end_to_end(
         "last_updated",
     ]
 
-    # =================================================================
-    # CAPTURE PARQUET OUTPUT
-    # =================================================================
-
-    captured: dict[str, object] = {}
+    captured: CapturedWrite = {
+        "df": transform_job.spark.createDataFrame(
+            [],
+            "id string",
+        ),
+        "output_path": "",
+        "mode": "",
+    }
 
     def fake_write(
-        df: object,
+        df: DataFrame,
         output_path: str,
         mode: str,
     ) -> None:
-        """Capture DataFrame instead of writing real Parquet."""
+        """Capture Parquet write arguments."""
 
         captured["df"] = df
         captured["output_path"] = output_path
         captured["mode"] = mode
 
-    # =================================================================
-    # PATCH ONLY EXTERNAL BOUNDARIES
-    # =================================================================
-
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        {
-            "application": {
-                "raw_dataset": "crypto_market",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            {
+                "application": {
+                    "raw_dataset": "crypto_market",
+                },
+                "s3": {
+                    "bucket": "test-bucket",
+                },
             },
-            "s3": {
-                "bucket": "test-bucket",
-            },
-        },
-    ), patch.object(
-        transform_job,
-        "_get_original_json_column_order",
-        return_value=expected_raw_columns,
-    ), patch.object(
-        transform_job.parquet_writer,
-        "write",
-        side_effect=fake_write,
-    ), patch.object(
-        transform_job.path_builder,
-        "build_processed_path",
-        return_value=(
-            "processed_data/crypto_market/"
-            "crypto_market.parquet"
+        ),
+        patch.object(
+            transform_job,
+            "_get_original_json_column_order",
+            return_value=expected_raw_columns,
+        ),
+        patch.object(
+            transform_job.parquet_writer,
+            "write",
+            side_effect=fake_write,
+        ),
+        patch.object(
+            transform_job.path_builder,
+            "build_processed_path",
+            return_value=("processed_data/crypto_market/" "crypto_market.parquet"),
         ),
     ):
-
-        # =============================================================
-        # RUN COMPLETE TRANSFORM JOB
-        # =============================================================
-
         result = transform_job.run(
             input_path=raw_input_path,
         )
 
-    # =================================================================
-    # VERIFY RESULT PATH
-    # =================================================================
-
     assert result == expected_processed_path
 
-    # =================================================================
-    # VERIFY PARQUET WRITE
-    # =================================================================
-
-    assert captured["output_path"] == (
-        expected_processed_path
-    )
-
+    assert captured["output_path"] == expected_processed_path
     assert captured["mode"] == "append"
-
-    assert captured["df"] is not None
 
     processed_df = captured["df"]
 
-    # =================================================================
-    # VERIFY SPARK DATAFRAME
-    # =================================================================
-
-    assert hasattr(
-        processed_df,
-        "columns",
-    )
-
-    # =================================================================
-    # VERIFY RECORD COUNT
-    # =================================================================
-
     assert processed_df.count() == 2
-
-    # =================================================================
-    # GET ACTUAL COLUMNS
-    # =================================================================
 
     actual_columns = processed_df.columns
 
-    # =================================================================
-    # VERIFY ALL RAW COLUMNS EXIST
-    # =================================================================
+    assert len(actual_columns) == len(set(actual_columns))
 
     for column in expected_raw_columns:
         assert column in actual_columns
 
-    # =================================================================
-    # VERIFY RAW COLUMN ORDER
-    # =================================================================
-
-    assert actual_columns[
-        : len(expected_raw_columns)
-    ] == expected_raw_columns
-
-    # =================================================================
-    # VERIFY NO DUPLICATE COLUMNS
-    # =================================================================
-
-    assert len(actual_columns) == len(
-        set(actual_columns)
-    )
-
-    # =================================================================
-    # VERIFY DERIVED COLUMNS COME LAST
-    # =================================================================
+    assert actual_columns[: len(expected_raw_columns)] == expected_raw_columns
 
     derived_columns = [
-        column
-        for column in actual_columns
-        if column not in expected_raw_columns
+        column for column in actual_columns if column not in expected_raw_columns
     ]
-
-    assert actual_columns[
-        len(expected_raw_columns) :
-    ] == derived_columns
-
-    # =================================================================
-    # VERIFY DERIVED COLUMNS ACTUALLY EXIST
-    # =================================================================
 
     assert len(derived_columns) > 0
 
-    # =================================================================
-    # VERIFY ROW VALUES
-    # =================================================================
+    assert actual_columns[len(expected_raw_columns) :] == derived_columns
 
     rows = processed_df.collect()
 
     assert len(rows) == 2
 
-    bitcoin = next(
-        row
-        for row in rows
-        if row["id"] == "bitcoin"
-    )
+    bitcoin = next(row for row in rows if row["id"] == "bitcoin")
 
-    ethereum = next(
-        row
-        for row in rows
-        if row["id"] == "ethereum"
-    )
+    ethereum = next(row for row in rows if row["id"] == "ethereum")
 
     assert bitcoin["symbol"] == "btc"
     assert bitcoin["name"] == "Bitcoin"
@@ -426,7 +307,7 @@ def test_transform_job_end_to_end(
 
 
 # =====================================================================
-# EMPTY INPUT PATH
+# EMPTY INPUT
 # =====================================================================
 
 
@@ -450,7 +331,7 @@ def test_transform_job_empty_input_path(
 
 
 def test_transform_job_invalid_input_path() -> None:
-    """Reject an invalid input path."""
+    """Reject a non-S3A input path."""
 
     with pytest.raises(
         ValueError,
@@ -467,43 +348,35 @@ def test_transform_job_invalid_input_path() -> None:
 
 
 def test_transform_job_empty_s3_object() -> None:
-    """Fail when the S3 NDJSON object is empty."""
+    """Reject an empty S3 NDJSON object."""
 
-    raw_input_path = (
-        "s3a://test-bucket/"
-        "raw_data/crypto_market/"
-        "empty.ndjson"
-    )
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/" "empty.ndjson"
 
     fake_body = MagicMock()
-
     fake_body.readline.return_value = b""
 
     fake_s3 = MagicMock()
-
     fake_s3.get_object.return_value = {
         "Body": fake_body,
     }
 
-    with patch(
-        "src.transform.transform_job.boto3.client",
-        return_value=fake_s3,
-    ):
-
-        with pytest.raises(
+    with (
+        patch(
+            "src.transform.transform_job.boto3.client",
+            return_value=fake_s3,
+        ),
+        pytest.raises(
             ValueError,
             match="Raw NDJSON file is empty.",
-        ):
-            TransformJob._get_original_json_column_order(
-                raw_input_path,
-            )
+        ),
+    ):
+        TransformJob._get_original_json_column_order(
+            raw_input_path,
+        )
 
     fake_s3.get_object.assert_called_once_with(
         Bucket="test-bucket",
-        Key=(
-            "raw_data/crypto_market/"
-            "empty.ndjson"
-        ),
+        Key="raw_data/crypto_market/empty.ndjson",
     )
 
     fake_body.close.assert_called_once_with()
@@ -515,81 +388,236 @@ def test_transform_job_empty_s3_object() -> None:
 
 
 def test_transform_job_invalid_json() -> None:
-    """Fail when the first NDJSON line is invalid JSON."""
+    """Reject invalid JSON in the first NDJSON record."""
 
-    raw_input_path = (
-        "s3a://test-bucket/"
-        "raw_data/crypto_market/"
-        "invalid.ndjson"
-    )
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/" "invalid.ndjson"
 
     fake_body = MagicMock()
-
-    fake_body.readline.return_value = (
-        b"{invalid-json}\n"
-    )
+    fake_body.readline.return_value = b"{invalid-json}\n"
 
     fake_s3 = MagicMock()
-
     fake_s3.get_object.return_value = {
         "Body": fake_body,
     }
 
-    with patch(
-        "src.transform.transform_job.boto3.client",
-        return_value=fake_s3,
-    ):
-
-        with pytest.raises(
+    with (
+        patch(
+            "src.transform.transform_job.boto3.client",
+            return_value=fake_s3,
+        ),
+        pytest.raises(
             ValueError,
             match="First NDJSON line is not valid JSON.",
-        ):
-            TransformJob._get_original_json_column_order(
-                raw_input_path,
-            )
+        ),
+    ):
+        TransformJob._get_original_json_column_order(
+            raw_input_path,
+        )
 
     fake_body.close.assert_called_once_with()
 
 
 # =====================================================================
-# FIRST RECORD NOT JSON OBJECT
+# FIRST RECORD NOT OBJECT
 # =====================================================================
 
 
 def test_transform_job_first_record_not_object() -> None:
-    """Fail when the first NDJSON record is not an object."""
+    """Reject a JSON array as the first NDJSON record."""
 
-    raw_input_path = (
-        "s3a://test-bucket/"
-        "raw_data/crypto_market/"
-        "invalid.ndjson"
-    )
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/" "invalid.ndjson"
 
     fake_body = MagicMock()
-
-    fake_body.readline.return_value = (
-        b"[1, 2, 3]\n"
-    )
+    fake_body.readline.return_value = b"[1, 2, 3]\n"
 
     fake_s3 = MagicMock()
-
     fake_s3.get_object.return_value = {
         "Body": fake_body,
     }
 
-    with patch(
-        "src.transform.transform_job.boto3.client",
-        return_value=fake_s3,
+    with (
+        patch(
+            "src.transform.transform_job.boto3.client",
+            return_value=fake_s3,
+        ),
+        pytest.raises(
+            TypeError,
+            match="First NDJSON record must be a JSON object.",
+        ),
     ):
+        TransformJob._get_original_json_column_order(
+            raw_input_path,
+        )
+
+    fake_body.close.assert_called_once_with()
+
+
+# =====================================================================
+# EMPTY JSON OBJECT
+# =====================================================================
+
+
+def test_transform_job_empty_json_object() -> None:
+    """Reject an empty JSON object."""
+
+    raw_input_path = (
+        "s3a://test-bucket/" "raw_data/crypto_market/" "empty-object.ndjson"
+    )
+
+    fake_body = MagicMock()
+    fake_body.readline.return_value = b"{}\n"
+
+    fake_s3 = MagicMock()
+    fake_s3.get_object.return_value = {
+        "Body": fake_body,
+    }
+
+    with (
+        patch(
+            "src.transform.transform_job.boto3.client",
+            return_value=fake_s3,
+        ),
+        pytest.raises(
+            ValueError,
+            match="First NDJSON record contains no columns.",
+        ),
+    ):
+        TransformJob._get_original_json_column_order(
+            raw_input_path,
+        )
+
+    fake_body.close.assert_called_once_with()
+
+
+# =====================================================================
+# ORDER PROCESSED COLUMNS
+# =====================================================================
+
+
+def test_order_processed_columns() -> None:
+    """Keep raw columns first and derived columns last."""
+
+    raw_columns = [
+        "id",
+        "symbol",
+        "name",
+        "current_price",
+    ]
+
+    spark = SparkSessionFactory.create()
+
+    try:
+        df = spark.createDataFrame(
+            [
+                (
+                    "btc",
+                    "Bitcoin",
+                    100.0,
+                    "bitcoin",
+                    10.0,
+                ),
+            ],
+            [
+                "symbol",
+                "name",
+                "current_price",
+                "id",
+                "price_direction",
+            ],
+        )
+
+        result = TransformJob._order_processed_columns(
+            raw_column_order=raw_columns,
+            processed_df=df,
+        )
+
+        assert result.columns == [
+            "id",
+            "symbol",
+            "name",
+            "current_price",
+            "price_direction",
+        ]
+    finally:
+        spark.stop()
+
+
+# =====================================================================
+# FINAL COLUMN VALIDATION
+# =====================================================================
+
+
+def test_validate_final_columns_success() -> None:
+    """Accept correctly ordered processed columns."""
+
+    raw_columns = [
+        "id",
+        "symbol",
+        "name",
+    ]
+
+    spark = SparkSessionFactory.create()
+
+    try:
+        df = spark.createDataFrame(
+            [
+                (
+                    "bitcoin",
+                    "btc",
+                    "Bitcoin",
+                    1.0,
+                ),
+            ],
+            [
+                "id",
+                "symbol",
+                "name",
+                "price_direction",
+            ],
+        )
+
+        TransformJob._validate_final_columns(
+            raw_column_order=raw_columns,
+            processed_df=df,
+        )
+    finally:
+        spark.stop()
+
+
+def test_validate_final_columns_rejects_wrong_order() -> None:
+    """Reject incorrectly ordered processed columns."""
+
+    raw_columns = [
+        "id",
+        "symbol",
+        "name",
+    ]
+
+    spark = SparkSessionFactory.create()
+
+    try:
+        df = spark.createDataFrame(
+            [
+                (
+                    "btc",
+                    "bitcoin",
+                    "Bitcoin",
+                ),
+            ],
+            [
+                "symbol",
+                "id",
+                "name",
+            ],
+        )
 
         with pytest.raises(
             ValueError,
-            match=(
-                "First NDJSON record must be a JSON object."
-            ),
+            match="RAW column order validation failed",
         ):
-            TransformJob._get_original_json_column_order(
-                raw_input_path,
+            TransformJob._validate_final_columns(
+                raw_column_order=raw_columns,
+                processed_df=df,
             )
-
-    fake_body.close.assert_called_once_with()
+    finally:
+        spark.stop()

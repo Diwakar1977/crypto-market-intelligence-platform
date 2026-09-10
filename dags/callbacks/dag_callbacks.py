@@ -10,7 +10,6 @@ from src.notifications.email_template import EmailTemplate
 from src.notifications.sns_notification import SNSNotification
 from src.utils.logger import Logger
 
-
 logger = Logger.get_logger(
     "dag_callbacks",
     "dag_callbacks.log",
@@ -47,9 +46,7 @@ def dag_success_callback(
     """Send notification when the DAG succeeds."""
 
     if not NOTIFICATION_ON_SUCCESS:
-        logger.info(
-            "Success notification disabled."
-        )
+        logger.info("Success notification disabled.")
         return
 
     execution_date = _get_execution_date(context)
@@ -60,19 +57,11 @@ def dag_success_callback(
 
     if task_instance is not None:
         try:
-            extract_result = task_instance.xcom_pull(
-                task_ids="extract"
-            )
+            extract_result = task_instance.xcom_pull(task_ids="extract")
 
             if isinstance(extract_result, dict):
-                record_count = int(
-                    extract_result.get(
-                        "record_count",
-                        0
-                    )
-                    or 0
-                )
-                
+                record_count = int(extract_result.get("record_count", 0) or 0)
+
         except (TypeError, ValueError):
             record_count = 0
 
@@ -90,14 +79,10 @@ def dag_success_callback(
             message=message,
         )
 
-        logger.info(
-            "DAG success notification sent."
-        )
+        logger.info("DAG success notification sent.")
 
     except Exception:
-        logger.exception(
-            "Failed to send DAG success notification."
-        )
+        logger.exception("Failed to send DAG success notification.")
 
 
 def dag_failure_callback(
@@ -106,9 +91,7 @@ def dag_failure_callback(
     """Send notification when the DAG fails."""
 
     if not NOTIFICATION_ON_FAILURE:
-        logger.info(
-            "Failure notification disabled."
-        )
+        logger.info("Failure notification disabled.")
         return
 
     execution_date = _get_execution_date(context)
@@ -142,11 +125,7 @@ def dag_failure_callback(
             message=message,
         )
 
-        logger.info(
-            "DAG failure notification sent."
-        )
+        logger.info("DAG failure notification sent.")
 
     except Exception:
-        logger.exception(
-            "Failed to send DAG failure notification."
-        )
+        logger.exception("Failed to send DAG failure notification.")

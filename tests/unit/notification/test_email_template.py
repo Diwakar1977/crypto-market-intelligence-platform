@@ -45,11 +45,7 @@ def test_pipeline_success_email_template():
 
         # Verify log file
         project_root = Path(__file__).resolve().parents[3]
-        log_file = (
-            project_root
-            / "logs"
-            / "test_email_template_success.log"
-        )
+        log_file = project_root / "logs" / "test_email_template_success.log"
 
         assert log_file.exists()
 
@@ -108,11 +104,7 @@ def test_pipeline_failure_email_template():
 
         # Verify log file
         project_root = Path(__file__).resolve().parents[3]
-        log_file = (
-            project_root
-            / "logs"
-            / "test_email_template_failure.log"
-        )
+        log_file = project_root / "logs" / "test_email_template_failure.log"
 
         assert log_file.exists()
 

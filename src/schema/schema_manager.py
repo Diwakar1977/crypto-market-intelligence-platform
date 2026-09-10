@@ -18,7 +18,6 @@ from pyspark.sql.types import (
 
 from src.utils.logger import Logger
 
-
 logger = Logger.get_logger(
     "schema_manager",
     "schema_manager.log",
@@ -67,9 +66,7 @@ class SchemaManager:
         )
 
         if not schema:
-            raise ValueError(
-                "Schema cannot be empty."
-            )
+            raise ValueError("Schema cannot be empty.")
 
         normalized_schema: dict[str, str] = {}
 
@@ -81,8 +78,7 @@ class SchemaManager:
 
             if spark_type is None:
                 logger.warning(
-                    "Unknown logical type '%s' for column '%s'. "
-                    "Using StringType.",
+                    "Unknown logical type '%s' for column '%s'. " "Using StringType.",
                     data_type,
                     column_name,
                 )
@@ -92,8 +88,7 @@ class SchemaManager:
             normalized_schema[column_name] = spark_type
 
         logger.info(
-            "Schema normalization completed successfully. "
-            "Columns normalized=%d",
+            "Schema normalization completed successfully. " "Columns normalized=%d",
             len(normalized_schema),
         )
 
@@ -115,25 +110,18 @@ class SchemaManager:
         )
 
         if not schema:
-            raise ValueError(
-                "Schema cannot be empty."
-            )
+            raise ValueError("Schema cannot be empty.")
 
-        valid_types = set(
-            self.TYPE_MAPPING.values()
-        )
+        valid_types = set(self.TYPE_MAPPING.values())
 
         for column_name, data_type in schema.items():
 
             if data_type not in valid_types:
                 raise ValueError(
-                    f"Unsupported type '{data_type}' "
-                    f"for column '{column_name}'."
+                    f"Unsupported type '{data_type}' " f"for column '{column_name}'."
                 )
 
-        logger.info(
-            "Schema validation completed successfully."
-        )
+        logger.info("Schema validation completed successfully.")
 
     # =============================================================
     # ACTUAL SPARK TYPE
@@ -156,9 +144,7 @@ class SchemaManager:
         }
 
         if spark_type_name not in mapping:
-            raise ValueError(
-                f"Unsupported Spark type: {spark_type_name}"
-            )
+            raise ValueError(f"Unsupported Spark type: {spark_type_name}")
 
         return mapping[spark_type_name]
 
@@ -183,14 +169,10 @@ class SchemaManager:
           inferred nested datatype.
         """
 
-        logger.info(
-            "Starting managed schema application."
-        )
+        logger.info("Starting managed schema application.")
 
         if not normalized_schema:
-            raise ValueError(
-                "Cannot apply an empty schema."
-            )
+            raise ValueError("Cannot apply an empty schema.")
 
         result = df
 
@@ -235,9 +217,7 @@ class SchemaManager:
 
                 result = result.withColumn(
                     column_name,
-                    col(column_name).cast(
-                        LongType()
-                    ),
+                    col(column_name).cast(LongType()),
                 )
 
                 continue
@@ -250,9 +230,7 @@ class SchemaManager:
 
                 result = result.withColumn(
                     column_name,
-                    col(column_name).cast(
-                        DoubleType()
-                    ),
+                    col(column_name).cast(DoubleType()),
                 )
 
                 continue
@@ -265,9 +243,7 @@ class SchemaManager:
 
                 result = result.withColumn(
                     column_name,
-                    col(column_name).cast(
-                        BooleanType()
-                    ),
+                    col(column_name).cast(BooleanType()),
                 )
 
                 continue
@@ -280,9 +256,7 @@ class SchemaManager:
 
                 result = result.withColumn(
                     column_name,
-                    col(column_name).cast(
-                        StringType()
-                    ),
+                    col(column_name).cast(StringType()),
                 )
 
                 continue
@@ -312,8 +286,6 @@ class SchemaManager:
             *original_columns,
         )
 
-        logger.info(
-            "Managed schema applied successfully."
-        )
+        logger.info("Managed schema applied successfully.")
 
         return result

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import pytest
 from collections.abc import Generator
+
+import pytest
 from pyspark.sql import Row, SparkSession
 from pyspark.sql.types import StructType
 
 from src.schema.schema_manager import SchemaManager
-
 
 # =====================================================================
 # FIXTURE
@@ -24,8 +24,7 @@ def spark() -> Generator[SparkSession, None, None]:
     """Create a SparkSession for schema tests."""
 
     spark = (
-        SparkSession.builder
-        .master("local[2]")
+        SparkSession.builder.master("local[2]")
         .appName("schema-manager-tests")
         .config("spark.ui.enabled", "false")
         .getOrCreate()
@@ -411,10 +410,7 @@ def test_apply_schema_long_type(
         normalized_schema,
     )
 
-    assert (
-        result.schema["market_cap_rank"].dataType.typeName()
-        == "long"
-    )
+    assert result.schema["market_cap_rank"].dataType.typeName() == "long"
 
     assert result.collect()[0]["market_cap_rank"] == 100
 
@@ -443,14 +439,9 @@ def test_apply_schema_double_type(
         normalized_schema,
     )
 
-    assert (
-        result.schema["current_price"].dataType.typeName()
-        == "double"
-    )
+    assert result.schema["current_price"].dataType.typeName() == "double"
 
-    assert result.collect()[0]["current_price"] == pytest.approx(
-        123.45
-    )
+    assert result.collect()[0]["current_price"] == pytest.approx(123.45)
 
 
 def test_apply_schema_boolean_type(
@@ -477,10 +468,7 @@ def test_apply_schema_boolean_type(
         normalized_schema,
     )
 
-    assert (
-        result.schema["is_active"].dataType.typeName()
-        == "boolean"
-    )
+    assert result.schema["is_active"].dataType.typeName() == "boolean"
 
     assert result.collect()[0]["is_active"] is True
 
@@ -509,15 +497,9 @@ def test_apply_schema_timestamp_type(
         normalized_schema,
     )
 
-    assert (
-        result.schema["last_updated"].dataType.typeName()
-        == "timestamp"
-    )
+    assert result.schema["last_updated"].dataType.typeName() == "timestamp"
 
-    assert (
-        str(result.collect()[0]["last_updated"])
-        == "2026-09-04 09:00:00"
-    )
+    assert str(result.collect()[0]["last_updated"]) == "2026-09-04 09:00:00"
 
 
 def test_apply_schema_keeps_struct_type(
@@ -541,9 +523,7 @@ def test_apply_schema_keeps_struct_type(
         ],
     )
 
-    original_struct_type = df.schema[
-        "metadata"
-    ].dataType
+    original_struct_type = df.schema["metadata"].dataType
 
     assert isinstance(
         original_struct_type,
@@ -597,10 +577,7 @@ def test_apply_schema_keeps_array_type(
         ],
     )
 
-    assert (
-        df.schema["tags"].dataType.typeName()
-        == "array"
-    )
+    assert df.schema["tags"].dataType.typeName() == "array"
 
     normalized_schema = {
         "id": "StringType",
@@ -612,10 +589,7 @@ def test_apply_schema_keeps_array_type(
         normalized_schema,
     )
 
-    assert (
-        result.schema["tags"].dataType.typeName()
-        == "array"
-    )
+    assert result.schema["tags"].dataType.typeName() == "array"
 
     assert result.columns == [
         "id",
@@ -690,9 +664,7 @@ def test_apply_schema_ignores_column_not_in_schema(
         ],
     )
 
-    original_type = df.schema[
-        "extra_column"
-    ].dataType.typeName()
+    original_type = df.schema["extra_column"].dataType.typeName()
 
     normalized_schema = {
         "id": "StringType",
@@ -708,10 +680,7 @@ def test_apply_schema_ignores_column_not_in_schema(
         "extra_column",
     ]
 
-    assert (
-        result.schema["extra_column"].dataType.typeName()
-        == original_type
-    )
+    assert result.schema["extra_column"].dataType.typeName() == original_type
 
 
 def test_apply_schema_empty_schema(

@@ -50,13 +50,9 @@ class DataValidator:
         "atl",
     )
 
-    POSITIVE_INTEGER_COLUMNS: ClassVar[tuple[str, ...]] = (
-        "market_cap_rank",
-    )
+    POSITIVE_INTEGER_COLUMNS: ClassVar[tuple[str, ...]] = ("market_cap_rank",)
 
-    RELATIONSHIP_VALIDATION_RULES: ClassVar[
-        tuple[tuple[str, str], ...]
-    ] = (
+    RELATIONSHIP_VALIDATION_RULES: ClassVar[tuple[tuple[str, str], ...]] = (
         ("high_24h", "low_24h"),
     )
 
@@ -81,13 +77,10 @@ class DataValidator:
             is_valid = invalid_count == 0
 
             if is_valid:
-                logger.info(
-                    "Data validation completed successfully."
-                )
+                logger.info("Data validation completed successfully.")
             else:
                 logger.error(
-                    "Data validation failed. "
-                    "Invalid records detected: %d",
+                    "Data validation failed. " "Invalid records detected: %d",
                     invalid_count,
                 )
 
@@ -100,9 +93,7 @@ class DataValidator:
             raise
 
         except Exception:
-            logger.exception(
-                "Unexpected error during data validation."
-            )
+            logger.exception("Unexpected error during data validation.")
             raise
 
     def _validate_required_columns(
@@ -112,9 +103,7 @@ class DataValidator:
         """Validate that required columns exist."""
 
         missing_columns = [
-            column
-            for column in self.REQUIRED_COLUMNS
-            if column not in df.columns
+            column for column in self.REQUIRED_COLUMNS if column not in df.columns
         ]
 
         if missing_columns:
@@ -124,8 +113,7 @@ class DataValidator:
             )
 
             raise ValueError(
-                "Missing required columns: "
-                f"{', '.join(missing_columns)}"
+                "Missing required columns: " f"{', '.join(missing_columns)}"
             )
 
     def _count_null_values(
@@ -134,10 +122,7 @@ class DataValidator:
     ) -> int:
         """Count records with NULL required values."""
 
-        conditions = [
-            col(column).isNull()
-            for column in self.REQUIRED_COLUMNS
-        ]
+        conditions = [col(column).isNull() for column in self.REQUIRED_COLUMNS]
 
         if not conditions:
             return 0
@@ -147,9 +132,7 @@ class DataValidator:
         for condition in conditions[1:]:
             invalid_condition |= condition
 
-        count = df.filter(
-            invalid_condition
-        ).count()
+        count = df.filter(invalid_condition).count()
 
         if count > 0:
             logger.warning(
@@ -179,9 +162,7 @@ class DataValidator:
         for condition in conditions[1:]:
             invalid_condition |= condition
 
-        count = df.filter(
-            invalid_condition
-        ).count()
+        count = df.filter(invalid_condition).count()
 
         if count > 0:
             logger.warning(
@@ -211,9 +192,7 @@ class DataValidator:
         for condition in conditions[1:]:
             invalid_condition |= condition
 
-        count = df.filter(
-            invalid_condition
-        ).count()
+        count = df.filter(invalid_condition).count()
 
         if count > 0:
             logger.warning(
@@ -231,18 +210,11 @@ class DataValidator:
 
         conditions = []
 
-        for higher_column, lower_column in (
-            self.RELATIONSHIP_VALIDATION_RULES
-        ):
-            if (
-                higher_column not in df.columns
-                or lower_column not in df.columns
-            ):
+        for higher_column, lower_column in self.RELATIONSHIP_VALIDATION_RULES:
+            if higher_column not in df.columns or lower_column not in df.columns:
                 continue
 
-            conditions.append(
-                col(higher_column) < col(lower_column)
-            )
+            conditions.append(col(higher_column) < col(lower_column))
 
         if not conditions:
             return 0
@@ -252,9 +224,7 @@ class DataValidator:
         for condition in conditions[1:]:
             invalid_condition |= condition
 
-        count = df.filter(
-            invalid_condition
-        ).count()
+        count = df.filter(invalid_condition).count()
 
         if count > 0:
             logger.warning(
