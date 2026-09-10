@@ -1,0 +1,19 @@
+# =============================================================================
+# Crypto Market Intelligence Platform - CI Pipeline
+# =============================================================================
+# Runs code quality checks, tests, validation, and package build checks.
+# CI does not connect to or create AWS production resources.
+# =============================================================================
+
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
