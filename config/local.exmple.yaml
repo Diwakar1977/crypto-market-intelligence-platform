@@ -1,0 +1,74 @@
+# APPLICATION
+application:
+  name: 
+  pipeline_name: 
+  source_system: 
+  target_table: 
+  raw_dataset:
+
+# AWS
+aws: 
+  region: 
+
+# COINGECKO 
+coingecko: 
+  base_url: 
+  vs_currency: 
+
+# S3
+s3:
+  bucket: 
+  raw_prefix: 
+  processed_prefix:
+
+  raw_path:
+  processed_path: 
+  
+# SPARK
+spark:
+  master:
+  driver_memory: 
+  executor_memory: 
+  shuffle_partitions: 
+
+# HADOOP
+hadoop:
+  aws_package: 
+
+# SNS
+sns:
+  topic_arn: 
+
+# REDSHIFT
+redshift:
+  host: 
+  port: 
+  database: 
+  schema:
+  table: 
+  workgroup: 
+  iam_role: 
+
+# EMR
+emr:
+  release: 
+  service_role: 
+  ec2_role: 
+  instance_profile: 
+
+  subnet_id:
+
+  master_instance_type: 
+  core_instance_type: 
+  core_instance_count: 
+
+  cluster_name: 
+  log_uri:
+
+# RUNTIME
+runtime:
+  compute_mode: 
+  timezone: 
+  dry_run: false
+  log_level: 
+  log_dir: 

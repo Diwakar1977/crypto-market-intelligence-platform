@@ -69,6 +69,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install dependencies"
         run: |
@@ -97,6 +98,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install dependencies"
         run: |
@@ -125,6 +127,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install dependencies"
         run: |
@@ -157,6 +160,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install dependencies"
         run: |
@@ -185,6 +189,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install dependencies"
         run: |
@@ -216,6 +221,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install dependencies"
         run: |
@@ -264,6 +270,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install YAML validator"
         run: |
@@ -336,6 +343,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Compile Python files"
         run: |
@@ -378,6 +386,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install dependencies"
         run: |
@@ -471,6 +480,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install dependencies"
         run: |
@@ -632,6 +642,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements/requirements-dev.txt
 
       - name: "Install build dependencies"
         run: |
