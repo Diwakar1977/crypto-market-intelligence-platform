@@ -129,9 +129,12 @@ def test_init_rejects_empty_string(
 def test_init_rejects_invalid_port() -> None:
     """Reject zero or negative Redshift port."""
 
-    with patch("src.load.redshift_storage.boto3.client"), pytest.raises(
-        ValueError,
-        match="port must be greater than zero.",
+    with (
+        patch("src.load.redshift_storage.boto3.client"),
+        pytest.raises(
+            ValueError,
+            match="port must be greater than zero.",
+        ),
     ):
         RedshiftStorage(
             host="redshift.example.com",
@@ -450,17 +453,20 @@ def test_execute_retries_after_failure(
 
         return connection
 
-    with patch.object(
-        redshift_storage,
-        "get_connection",
-        side_effect=get_connection_side_effect,
-    ), patch.object(
-        redshift_storage,
-        "_reset_connection",
-        side_effect=lambda: setattr(
+    with (
+        patch.object(
             redshift_storage,
-            "_connection",
-            None,
+            "get_connection",
+            side_effect=get_connection_side_effect,
+        ),
+        patch.object(
+            redshift_storage,
+            "_reset_connection",
+            side_effect=lambda: setattr(
+                redshift_storage,
+                "_connection",
+                None,
+            ),
         ),
     ):
         redshift_storage.execute("SELECT 1")
@@ -868,13 +874,16 @@ def test_context_manager_usage(
 ) -> None:
     """Verify context manager behavior."""
 
-    with patch.object(
-        redshift_storage,
-        "connect",
-    ) as mock_connect, patch.object(
-        redshift_storage,
-        "close",
-    ) as mock_close:
+    with (
+        patch.object(
+            redshift_storage,
+            "connect",
+        ) as mock_connect,
+        patch.object(
+            redshift_storage,
+            "close",
+        ) as mock_close,
+    ):
 
         with redshift_storage as result:
             assert result is redshift_storage

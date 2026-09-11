@@ -69,19 +69,22 @@ def test_run_success(
 
     mock_client.fetch_market_data.return_value = records
 
-    with patch(
-        "src.extract.extract_job.CONFIG",
-        {
-            "application": {
-                "raw_dataset": "crypto_market",
+    with (
+        patch(
+            "src.extract.extract_job.CONFIG",
+            {
+                "application": {
+                    "raw_dataset": "crypto_market",
+                },
+                "s3": {
+                    "bucket": "test-bucket",
+                },
             },
-            "s3": {
-                "bucket": "test-bucket",
-            },
-        },
-    ), patch(
-        "src.extract.extract_job.PathBuilder.build_raw_path",
-        return_value="raw/crypto_market/2026-09-01/data.ndjson",
+        ),
+        patch(
+            "src.extract.extract_job.PathBuilder.build_raw_path",
+            return_value="raw/crypto_market/2026-09-01/data.ndjson",
+        ),
     ):
 
         result = extract_job.run()
@@ -128,19 +131,22 @@ def test_run_with_empty_records(
 
     mock_client.fetch_market_data.return_value = []
 
-    with patch(
-        "src.extract.extract_job.CONFIG",
-        {
-            "application": {
-                "raw_dataset": "crypto_market",
+    with (
+        patch(
+            "src.extract.extract_job.CONFIG",
+            {
+                "application": {
+                    "raw_dataset": "crypto_market",
+                },
+                "s3": {
+                    "bucket": "test-bucket",
+                },
             },
-            "s3": {
-                "bucket": "test-bucket",
-            },
-        },
-    ), pytest.raises(
-        ValueError,
-        match="CoinGecko returned zero records",
+        ),
+        pytest.raises(
+            ValueError,
+            match="CoinGecko returned zero records",
+        ),
     ):
         extract_job.run()
 
@@ -202,22 +208,26 @@ def test_run_when_s3_upload_fails(
 
     mock_storage.upload_file.side_effect = RuntimeError("S3 upload failed")
 
-    with patch(
-        "src.extract.extract_job.CONFIG",
-        {
-            "application": {
-                "raw_dataset": "crypto_market",
+    with (
+        patch(
+            "src.extract.extract_job.CONFIG",
+            {
+                "application": {
+                    "raw_dataset": "crypto_market",
+                },
+                "s3": {
+                    "bucket": "test-bucket",
+                },
             },
-            "s3": {
-                "bucket": "test-bucket",
-            },
-        },
-    ), patch(
-        "src.extract.extract_job.PathBuilder.build_raw_path",
-        return_value="raw/crypto_market/2026-09-01/data.ndjson",
-    ), pytest.raises(
-        RuntimeError,
-        match="S3 upload failed",
+        ),
+        patch(
+            "src.extract.extract_job.PathBuilder.build_raw_path",
+            return_value="raw/crypto_market/2026-09-01/data.ndjson",
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="S3 upload failed",
+        ),
     ):
         extract_job.run()
 
@@ -312,19 +322,21 @@ def test_write_ndjson_with_unicode(
 def test_create_extract_job() -> None:
     """Test creation of a configured ExtractJob."""
 
-    with patch(
-        "src.extract.extract_job.CONFIG",
-        {
-            "aws": {
-                "region": "ap-south-1",
+    with (
+        patch(
+            "src.extract.extract_job.CONFIG",
+            {
+                "aws": {
+                    "region": "ap-south-1",
+                },
+                "s3": {
+                    "bucket": "test-bucket",
+                },
             },
-            "s3": {
-                "bucket": "test-bucket",
-            },
-        },
-    ), patch("src.extract.extract_job.CoinGeckoClient") as mock_client_class, patch(
-        "src.extract.extract_job.S3Storage"
-    ) as mock_storage_class:
+        ),
+        patch("src.extract.extract_job.CoinGeckoClient") as mock_client_class,
+        patch("src.extract.extract_job.S3Storage") as mock_storage_class,
+    ):
 
         job = create_extract_job()
 

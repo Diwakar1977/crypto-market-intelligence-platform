@@ -866,12 +866,15 @@ def test_run_empty_raw_data(
 
     transform_job.spark.read.json.return_value = raw_df
 
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        mock_config,
-    ), pytest.raises(
-        ValueError,
-        match="Raw input contains no records",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            mock_config,
+        ),
+        pytest.raises(
+            ValueError,
+            match="Raw input contains no records",
+        ),
     ):
         transform_job.run(INPUT_PATH)
 
@@ -902,12 +905,15 @@ def test_run_source_column_missing(
 
     transform_job.spark.read.json.return_value = raw_df
 
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        mock_config,
-    ), pytest.raises(
-        ValueError,
-        match="Columns found in original NDJSON but missing",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            mock_config,
+        ),
+        pytest.raises(
+            ValueError,
+            match="Columns found in original NDJSON but missing",
+        ),
     ):
         transform_job.run(INPUT_PATH)
 
@@ -949,12 +955,15 @@ def test_run_schema_inference_failure(
         "schema inference failed"
     )
 
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        mock_config,
-    ), pytest.raises(
-        ValueError,
-        match="schema inference failed",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            mock_config,
+        ),
+        pytest.raises(
+            ValueError,
+            match="schema inference failed",
+        ),
     ):
         transform_job.run(INPUT_PATH)
 
@@ -984,12 +993,15 @@ def test_run_schema_validation_failure(
         "schema validation failed"
     )
 
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        mock_config,
-    ), pytest.raises(
-        ValueError,
-        match="schema validation failed",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            mock_config,
+        ),
+        pytest.raises(
+            ValueError,
+            match="schema validation failed",
+        ),
     ):
         transform_job.run(INPUT_PATH)
 
@@ -1025,12 +1037,15 @@ def test_run_data_validation_failure(
 
     transform_job.data_validator.validate.return_value = validation_result
 
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        mock_config,
-    ), pytest.raises(
-        ValueError,
-        match=r"Data validation failed.*10",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            mock_config,
+        ),
+        pytest.raises(
+            ValueError,
+            match=r"Data validation failed.*10",
+        ),
     ):
         transform_job.run(INPUT_PATH)
 
@@ -1061,12 +1076,15 @@ def test_run_normalization_failure(
         "Normalization failed"
     )
 
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        mock_config,
-    ), pytest.raises(
-        RuntimeError,
-        match="Normalization failed",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            mock_config,
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="Normalization failed",
+        ),
     ):
         transform_job.run(INPUT_PATH)
 
@@ -1096,12 +1114,15 @@ def test_run_feature_engineering_failure(
         "Feature engineering failed"
     )
 
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        mock_config,
-    ), pytest.raises(
-        RuntimeError,
-        match="Feature engineering failed",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            mock_config,
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="Feature engineering failed",
+        ),
     ):
         transform_job.run(INPUT_PATH)
 
@@ -1131,12 +1152,15 @@ def test_run_write_failure(
         "parquet write failed"
     )
 
-    with patch(
-        "src.transform.transform_job.CONFIG",
-        mock_config,
-    ), pytest.raises(
-        RuntimeError,
-        match="parquet write failed",
+    with (
+        patch(
+            "src.transform.transform_job.CONFIG",
+            mock_config,
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="parquet write failed",
+        ),
     ):
         transform_job.run(INPUT_PATH)
 

@@ -181,12 +181,15 @@ def test_extract_job_storage_failure(
         storage=storage,
     )
 
-    with patch(
-        "src.extract.extract_job.PathBuilder.build_raw_path",
-        return_value=("raw_data/crypto_market/" "crypto_market.ndjson"),
-    ), pytest.raises(
-        RuntimeError,
-        match="Storage upload failed",
+    with (
+        patch(
+            "src.extract.extract_job.PathBuilder.build_raw_path",
+            return_value=("raw_data/crypto_market/" "crypto_market.ndjson"),
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="Storage upload failed",
+        ),
     ):
         job.run()
 

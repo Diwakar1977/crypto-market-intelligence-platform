@@ -15,7 +15,7 @@ class Logger:
     _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
     @staticmethod
-    def get_logger(name: str, log_file: str):
+    def get_logger(name: str, log_file: str) -> logging.Logger:
         """
         Create and return a configured application logger.
 

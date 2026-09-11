@@ -4,7 +4,7 @@ from src.notifications.email_template import EmailTemplate
 from src.utils.logger import Logger
 
 
-def test_pipeline_success_email_template():
+def test_pipeline_success_email_template() -> None:
     """Test successful pipeline email template."""
 
     # Arrange
@@ -63,7 +63,7 @@ def test_pipeline_success_email_template():
         logger.handlers.clear()
 
 
-def test_pipeline_failure_email_template():
+def test_pipeline_failure_email_template() -> None:
     """Test failed pipeline email template."""
 
     # Arrange

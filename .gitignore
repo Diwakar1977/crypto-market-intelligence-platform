@@ -6,6 +6,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Build / Distribution Artifacts
+build/
+dist/
+*.egg-info/
+
 # Test / Coverage Cache
 .pytest_cache/
 .mypy_cache/
@@ -30,6 +35,3 @@ awscliv2.zip
 
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints/
-
-
-
