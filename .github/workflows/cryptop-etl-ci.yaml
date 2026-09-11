@@ -2,18 +2,729 @@
 # Crypto Market Intelligence Platform - CI Pipeline
 # =============================================================================
 # Runs code quality checks, tests, validation, and package build checks.
+#
+# CI uses development dependencies only.
 # CI does not connect to or create AWS production resources.
 # =============================================================================
 
 name: CI Pipeline
 
-on:
-  push:
-    branches:
-      - main
 
+# =============================================================================
+# TRIGGERS
+# =============================================================================
+
+on:
   pull_request:
     branches:
       - main
 
+  push:
+    branches:
+      - main
+
   workflow_dispatch:
+
+
+# =============================================================================
+# GLOBAL CI ENVIRONMENT
+# =============================================================================
+
+env:
+  PYTHON_VERSION: "3.12"
+
+
+# =============================================================================
+# PERMISSIONS
+# =============================================================================
+
+permissions:
+  contents: read
+
+
+# =============================================================================
+# JOBS
+# =============================================================================
+
+jobs:
+
+  # ===========================================================================
+  # CODE QUALITY
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Ruff
+  # ---------------------------------------------------------------------------
+
+  ruff:
+    name: "Code Quality • Ruff"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+
+      - name: "Run Ruff"
+        run: |
+          ruff check .
+
+
+  # ---------------------------------------------------------------------------
+  # Black
+  # ---------------------------------------------------------------------------
+
+  black:
+    name: "Code Quality • Black"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+
+      - name: "Check Black formatting"
+        run: |
+          black --check .
+
+
+  # ---------------------------------------------------------------------------
+  # Mypy
+  # ---------------------------------------------------------------------------
+
+  mypy:
+    name: "Code Quality • Mypy"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+
+      - name: "Run Mypy"
+        run: |
+          mypy src dags tests
+
+
+  # ===========================================================================
+  # TESTS
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Unit Tests
+  # ---------------------------------------------------------------------------
+
+  unit-tests:
+    name: "Tests • Unit Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+
+      - name: "Run Unit Tests"
+        run: |
+          pytest tests/unit -v
+
+
+  # ---------------------------------------------------------------------------
+  # Integration Tests
+  # ---------------------------------------------------------------------------
+
+  integration-tests:
+    name: "Tests • Integration Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+
+      - name: "Run Integration Tests"
+        run: |
+          pytest tests/integration -v
+
+
+  # ---------------------------------------------------------------------------
+  # Coverage
+  # ---------------------------------------------------------------------------
+
+  coverage:
+    name: "Tests • Coverage"
+    runs-on: ubuntu-latest
+
+    env:
+      COVERAGE_MINIMUM: "70"
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+
+      - name: "Run Tests with Coverage"
+        run: |
+          pytest tests \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-fail-under="${COVERAGE_MINIMUM}" \
+            -v
+
+      - name: "Upload coverage report"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            htmlcov/
+          if-no-files-found: warn
+
+
+  # ===========================================================================
+  # VALIDATION
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # YAML Validation
+  # ---------------------------------------------------------------------------
+
+  yaml-validation:
+    name: "Validation • YAML"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install YAML validator"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PyYAML
+
+      - name: "Validate YAML files"
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          import yaml
+
+
+          yaml_files = sorted(
+              path
+              for path in Path(".").rglob("*")
+              if path.is_file()
+              and path.suffix.lower() in {".yaml", ".yml"}
+              and ".git" not in path.parts
+              and ".venv" not in path.parts
+              and "venv" not in path.parts
+          )
+
+
+          if not yaml_files:
+              print("No YAML files found.")
+              sys.exit(0)
+
+
+          failed = False
+
+
+          for path in yaml_files:
+              try:
+                  with path.open("r", encoding="utf-8") as file:
+                      list(yaml.safe_load_all(file))
+
+                  print(f"YAML OK: {path}")
+
+              except Exception as exc:
+                  print(f"YAML ERROR: {path}")
+                  print(f"{type(exc).__name__}: {exc}")
+                  failed = True
+
+
+          if failed:
+              sys.exit(1)
+
+
+          print(f"Validated {len(yaml_files)} YAML file(s).")
+          PY
+
+
+  # ---------------------------------------------------------------------------
+  # Python Compile Validation
+  # ---------------------------------------------------------------------------
+
+  python-compile:
+    name: "Validation • Python Compile"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Compile Python files"
+        run: |
+          directories=()
+
+          if [ -d src ]; then
+            directories+=(src)
+          fi
+
+          if [ -d dags ]; then
+            directories+=(dags)
+          fi
+
+          if [ -d tests ]; then
+            directories+=(tests)
+          fi
+
+          if [ ${#directories[@]} -eq 0 ]; then
+            echo "No Python source directories found."
+            exit 0
+          fi
+
+          python -m compileall -q "${directories[@]}"
+
+
+  # ---------------------------------------------------------------------------
+  # Airflow DAG Import
+  # ---------------------------------------------------------------------------
+
+  airflow-dag-import:
+    name: "Validation • Airflow DAG Import"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+
+      - name: "Configure CI environment"
+        run: |
+          echo "AIRFLOW_HOME=${{ runner.temp }}/airflow" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/src:${GITHUB_WORKSPACE}/dags" >> "$GITHUB_ENV"
+
+      - name: "Import Airflow DAGs"
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import importlib.util
+          import sys
+
+
+          dags_dir = Path("dags")
+
+
+          if not dags_dir.exists():
+              print("dags/ directory not found.")
+              sys.exit(1)
+
+
+          dag_files = sorted(
+              path
+              for path in dags_dir.rglob("*.py")
+              if path.name != "__init__.py"
+          )
+
+
+          if not dag_files:
+              print("No DAG files found.")
+              sys.exit(1)
+
+
+          failed = False
+
+
+          for path in dag_files:
+              module_name = ".".join(path.with_suffix("").parts)
+
+              try:
+                  spec = importlib.util.spec_from_file_location(
+                      module_name,
+                      path,
+                  )
+
+                  if spec is None or spec.loader is None:
+                      raise ImportError(
+                          f"Unable to create import specification for {path}"
+                      )
+
+                  module = importlib.util.module_from_spec(spec)
+                  sys.modules[module_name] = module
+                  spec.loader.exec_module(module)
+
+                  print(f"DAG IMPORT OK: {path}")
+
+              except Exception as exc:
+                  print(f"DAG IMPORT FAILED: {path}")
+                  print(f"{type(exc).__name__}: {exc}")
+                  failed = True
+
+
+          if failed:
+              sys.exit(1)
+
+
+          print(f"Imported {len(dag_files)} DAG file(s) successfully.")
+          PY
+
+
+  # ---------------------------------------------------------------------------
+  # Configuration Validation
+  # ---------------------------------------------------------------------------
+
+  config-validation:
+    name: "Validation • Configuration"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+
+      - name: "Configure local environment"
+        run: |
+          echo "PYTHONPATH=${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/src:${GITHUB_WORKSPACE}/dags" >> "$GITHUB_ENV"
+
+      - name: "Validate configuration"
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          import yaml
+
+
+          CONFIG_DIR = Path("config")
+
+
+          REQUIRED_CONFIG_FILES = [
+              CONFIG_DIR / "local.yaml",
+              CONFIG_DIR / "production.yaml",
+          ]
+
+
+          REQUIRED_SECTIONS = [
+              "application",
+              "aws",
+              "coingecko",
+              "s3",
+              "spark",
+              "hadoop",
+              "sns",
+              "redshift",
+              "runtime",
+          ]
+
+
+          print("=" * 60)
+          print(" Configuration Validation")
+          print("=" * 60)
+
+
+          # -------------------------------------------------------------------
+          # Check configuration directory
+          # -------------------------------------------------------------------
+
+          if not CONFIG_DIR.is_dir():
+              print("ERROR: config/ directory not found.")
+              sys.exit(1)
+
+
+          # -------------------------------------------------------------------
+          # Validate configuration files
+          # -------------------------------------------------------------------
+
+          failed = False
+
+
+          for config_file in REQUIRED_CONFIG_FILES:
+              print(f"\nValidating: {config_file}")
+
+
+              if not config_file.is_file():
+                  print(
+                      f"ERROR: Missing configuration file: "
+                      f"{config_file}"
+                  )
+                  failed = True
+                  continue
+
+
+              try:
+                  with config_file.open(
+                      "r",
+                      encoding="utf-8",
+                  ) as file:
+                      config = yaml.safe_load(file)
+
+
+                  if not isinstance(config, dict):
+                      print(
+                          f"ERROR: {config_file} must contain "
+                          "a YAML mapping."
+                      )
+                      failed = True
+                      continue
+
+
+                  print("YAML syntax: OK")
+
+
+                  missing_sections = [
+                      section
+                      for section in REQUIRED_SECTIONS
+                      if section not in config
+                  ]
+
+
+                  if missing_sections:
+                      print(
+                          f"ERROR: Missing sections in {config_file}: "
+                          f"{', '.join(missing_sections)}"
+                      )
+                      failed = True
+
+                  else:
+                      print("Required sections: OK")
+
+
+              except yaml.YAMLError as exc:
+                  print(f"YAML ERROR: {config_file}")
+                  print(exc)
+                  failed = True
+
+
+              except OSError as exc:
+                  print(f"FILE ERROR: {config_file}")
+                  print(exc)
+                  failed = True
+
+
+          # -------------------------------------------------------------------
+          # Final configuration result
+          # -------------------------------------------------------------------
+
+          if failed:
+              print("\nConfiguration validation FAILED.")
+              sys.exit(1)
+
+
+          print("\n" + "=" * 60)
+          print(" Configuration validation PASSED")
+          print("=" * 60)
+          PY
+
+
+  # ===========================================================================
+  # BUILD
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Package Build and Import
+  # ---------------------------------------------------------------------------
+
+  package-import:
+    name: "Build • Package Import"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "Install build dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/requirements-dev.txt
+          python -m pip install build
+
+      - name: "Build Python package"
+        run: |
+          if [ -f pyproject.toml ]; then
+            python -m build
+          else
+            echo "pyproject.toml not found."
+            echo "Package build skipped."
+          fi
+
+      - name: "Validate package import"
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          python - <<'PY'
+          import importlib
+
+
+          try:
+              importlib.import_module("src")
+              print("PACKAGE IMPORT OK: src")
+
+          except ModuleNotFoundError:
+              print(
+                  "Package import skipped: "
+                  "src package entry point not found."
+              )
+          PY
+
+      - name: "Upload build artifact"
+        if: success() && hashFiles('dist/*') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/
+          if-no-files-found: error
+
+
+  # ---------------------------------------------------------------------------
+  # Artifact Validation
+  # ---------------------------------------------------------------------------
+
+  artifact-validation:
+    name: "Build • Artifact Validation"
+
+    needs:
+      - package-import
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Download build artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package
+          path: dist
+          if-no-artifact-found: warn
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: "Install validation tools"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install twine
+
+      - name: "Validate package metadata"
+        run: |
+          if compgen -G "dist/*" > /dev/null; then
+            twine check dist/*
+          else
+            echo "No package artifact found."
+            echo "Artifact validation skipped."
+          fi
+
+      - name: "Display build artifacts"
+        run: |
+          if [ -d dist ]; then
+            ls -lah dist/
+          else
+            echo "dist/ directory not found."
+          fi
+
+      - name: "Build validation completed"
+        run: |
+          echo "=============================================="
+          echo " CI build validation completed"
+          echo "=============================================="
