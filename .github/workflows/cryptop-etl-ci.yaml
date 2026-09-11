@@ -151,6 +151,9 @@ jobs:
     name: "Tests • Unit Tests"
     runs-on: ubuntu-latest
 
+    env:
+      ENV: ci
+
     steps:
       - name: "Checkout repository"
         uses: actions/checkout@v4
@@ -180,6 +183,9 @@ jobs:
     name: "Tests • Integration Tests"
     runs-on: ubuntu-latest
 
+    env:
+      ENV: ci
+
     steps:
       - name: "Checkout repository"
         uses: actions/checkout@v4
@@ -208,6 +214,9 @@ jobs:
   coverage:
     name: "Tests • Coverage"
     runs-on: ubuntu-latest
+
+    env:
+      ENV: ci
 
     env:
       COVERAGE_MINIMUM: "70"

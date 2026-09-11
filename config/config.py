@@ -87,6 +87,11 @@ def load_config() -> dict[str, Any]:
 
         return _load_yaml_file(config_path)
 
+    if environment == "ci":
+        config_path = CONFIG_DIR / "ci.yaml"
+
+        return _load_yaml_file(config_path)
+
     if environment == "production":
         return _load_s3_config()
 
