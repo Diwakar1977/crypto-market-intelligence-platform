@@ -384,6 +384,9 @@ jobs:
     name: "Validation • Airflow DAG Import"
     runs-on: ubuntu-latest
 
+    env:
+      ENV: ci
+
     steps:
       - name: "Checkout repository"
         uses: actions/checkout@v4

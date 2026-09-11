@@ -5,8 +5,11 @@ pyspark==3.5.6
 pandas<3.0
 numpy
 requests
+
 boto3
 botocore
+boto3-stubs
+
 psycopg2-binary
 sqlalchemy
 pyarrow
@@ -16,9 +19,6 @@ types-PyYAML
 
 pytest
 pytest-cov
-
-ruff 
+ruff
 black
 mypy
-
-pytest
