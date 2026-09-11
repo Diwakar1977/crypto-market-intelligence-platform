@@ -62,7 +62,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -91,7 +91,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -120,7 +120,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -156,7 +156,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -188,7 +188,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -221,7 +221,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -247,7 +247,7 @@ jobs:
 
       - name: "Upload coverage report"
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-report
           path: |
@@ -270,7 +270,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -343,7 +343,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -389,7 +389,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -483,7 +483,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -643,7 +643,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
         uses: actions/setup-python@v6
@@ -688,7 +688,7 @@ jobs:
 
       - name: "Upload build artifact"
         if: success() && hashFiles('dist/*') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: python-package
           path: dist/
@@ -709,7 +709,7 @@ jobs:
 
     steps:
       - name: "Download build artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: python-package
           path: dist
