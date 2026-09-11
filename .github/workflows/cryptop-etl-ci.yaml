@@ -247,7 +247,7 @@ jobs:
 
       - name: "Upload coverage report"
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: |
@@ -688,7 +688,7 @@ jobs:
 
       - name: "Upload build artifact"
         if: success() && hashFiles('dist/*') != ''
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: python-package
           path: dist/
@@ -709,7 +709,7 @@ jobs:
 
     steps:
       - name: "Download build artifact"
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: python-package
           path: dist
