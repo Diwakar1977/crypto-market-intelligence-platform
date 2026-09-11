@@ -504,10 +504,8 @@ jobs:
 
 
           REQUIRED_CONFIG_FILES = [
-              CONFIG_DIR / "local.yaml",
-              CONFIG_DIR / "production.yaml",
+              CONFIG_DIR / "ci.yaml",
           ]
-
 
           REQUIRED_SECTIONS = [
               "application",
