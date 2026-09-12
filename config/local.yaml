@@ -1,0 +1,72 @@
+# APPLICATION
+application:
+  name: crypto_market_intelligence
+  pipeline_name: crypto_market_etl
+  source_system: coingecko
+  target_table: crypto_market 
+  raw_dataset: crypto_market
+
+# AWS
+aws: 
+  region: ap-south-1
+
+# COINGECKO 
+coingecko: 
+  base_url: "https://api.coingecko.com/api/v3/coins/markets"
+  vs_currency: usd
+
+# S3
+s3:
+  bucket: crypto-etl-dev
+  raw_prefix: raw_data
+  processed_prefix: processed_data
+
+  
+# SPARK
+spark:
+  master: "local[*]"
+  driver_memory: 4g
+  executor_memory: 4g
+  shuffle_partitions: 200
+
+# HADOOP
+hadoop:
+  aws_package: "org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262"
+
+# SNS
+sns:
+  topic_arn: arn:aws:sns:ap-south-1:103021623716:crypto-etl-dev-notifications
+
+# REDSHIFT
+redshift:
+  host: crypto-etl-dev-wg.103021623716.ap-south-1.redshift-serverless.amazonaws.com
+  port: 5439
+  database: dev
+  schema: public
+  table: crypto_market
+  workgroup: crypto-etl-dev-wg
+  iam_role: arn:aws:iam::103021623716:role/Crypto-ETL-Redshift-Role
+
+# EMR
+emr:
+  release: ""
+  service_role: ""
+  ec2_role: ""
+  instance_profile: ""
+
+  subnet_id: ""
+
+  master_instance_type: ""
+  core_instance_type: ""
+  core_instance_count: 1
+
+  cluster_name: ""
+  log_uri: ""
+
+# RUNTIME
+runtime:
+  compute_mode: local
+  timezone: UTC
+  dry_run: true
+  log_level: INFO
+  log_dir: logs

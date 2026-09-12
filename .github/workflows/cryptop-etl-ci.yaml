@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ENV: ci
+      ENV: local
 
     steps:
       - name: "Checkout repository"
@@ -184,7 +184,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ENV: ci
+      ENV: local
 
     steps:
       - name: "Checkout repository"
@@ -216,7 +216,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ENV: ci
+      ENV: local
       COVERAGE_MINIMUM: "70"
 
     steps:
@@ -385,7 +385,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ENV: ci
+      ENV: local
 
     steps:
       - name: "Checkout repository"

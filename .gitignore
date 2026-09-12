@@ -25,10 +25,6 @@ htmlcov/
 logs/
 notebooks/logs/
 
-# Local and production configuration files
-config/local.yaml
-config/production.yaml
-
 # AWS CLI / Local Generated Files
 aws/
 awscliv2.zip
