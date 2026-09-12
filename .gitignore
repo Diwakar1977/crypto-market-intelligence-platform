@@ -27,7 +27,7 @@ notebooks/logs/
 
 # Local and production configuration files
 config/local.yaml
-config/production.yaml
+config/airflow.yaml
 
 # AWS CLI / Local Generated Files
 aws/

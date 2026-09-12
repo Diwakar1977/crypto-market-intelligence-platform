@@ -29,6 +29,7 @@ def _load_yaml_file(
 
     return config
 
+
 def _load_airflow_config() -> dict[str, Any]:
     """Load prodution configuration form Airflow Variable."""
 
@@ -48,11 +49,11 @@ def _load_airflow_config() -> dict[str, Any]:
 
     if not isinstance(config, dict):
         raise TypeError(
-            "Airflow Variable 'crypto_etl_config' "
-            "must contain a JSON object."
+            "Airflow Variable 'crypto_etl_config' " "must contain a JSON object."
         )
 
     return config
+
 
 def load_config() -> dict[str, Any]:
     """Load configuration based on the ENV variable."""
@@ -78,11 +79,13 @@ def load_config() -> dict[str, Any]:
 
     if environment:
         return _load_airflow_config()
-        
+
     raise ValueError(
         "Unsupported ENV. Expected 'local' or 'ci', "
         "or leave ENV unset for MWAA."
-        f"Got:", {environment}
+        "Got:",
+        {environment},
     )
+
 
 CONFIG = load_config()
