@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-import boto3
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -30,45 +29,30 @@ def _load_yaml_file(
 
     return config
 
+def _load_airflow_config() -> dict[str, Any]:
+    """Load prodution configuration form Airflow Variable."""
 
-def _load_s3_config() -> dict[str, Any]:
-    """Load production configuration from S3."""
+    try:
+        from airflow.sdk import Variable
 
-    bucket = os.getenv("CONFIG_S3_BUCKET")
-    key = os.getenv(
-        "CONFIG_S3_KEY",
-        "config/production.yaml",
+    except ImportError as exc:
+        raise ImportError(
+            "Airflow is required to load production configuration "
+            "from Airflow Variables."
+        ) from exc
+
+    config = Variable.get(
+        "crypto_etl_config",
+        deserialize_json=True,
     )
-
-    if not bucket:
-        raise ValueError(
-            "CONFIG_S3_BUCKET environment variable " "is required for production."
-        )
-
-    region = os.getenv(
-        "AWS_REGION",
-        "ap-south-1",
-    )
-
-    s3_client = boto3.client(
-        "s3",
-        region_name=region,
-    )
-
-    response = s3_client.get_object(
-        Bucket=bucket,
-        Key=key,
-    )
-
-    content = response["Body"].read().decode("utf-8")
-
-    config = yaml.safe_load(content)
 
     if not isinstance(config, dict):
-        raise TypeError(f"Invalid configuration format: " f"s3://{bucket}/{key}")
+        raise TypeError(
+            "Airflow Variable 'crypto_etl_config' "
+            "must contain a JSON object."
+        )
 
     return config
-
 
 def load_config() -> dict[str, Any]:
     """Load configuration based on the ENV variable."""
@@ -76,7 +60,7 @@ def load_config() -> dict[str, Any]:
     environment = (
         os.getenv(
             "ENV",
-            "local",
+            "",
         )
         .strip()
         .lower()
@@ -87,10 +71,18 @@ def load_config() -> dict[str, Any]:
 
         return _load_yaml_file(config_path)
 
-    if environment == "production":
-        return _load_s3_config()
+    if environment == "ci":
+        config_path = CONFIG_DIR / "ci.yaml"
 
-    raise ValueError(f"Unsupported ENV: {environment}")
+        return _load_yaml_file(config_path)
 
+    if environment:
+        return _load_airflow_config()
+        
+    raise ValueError(
+        "Unsupported ENV. Expected 'local' or 'ci', "
+        "or leave ENV unset for MWAA."
+        f"Got:", {environment}
+    )
 
 CONFIG = load_config()
