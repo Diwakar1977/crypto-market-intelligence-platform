@@ -1,0 +1,8 @@
+apache-airflow==3.2.1
+apache-airflow-providers-amazon
+requests
+boto3
+botocore
+psycopg2-binary
+sqlalchemy
+PyYAML

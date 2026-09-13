@@ -27,7 +27,9 @@ notebooks/logs/
 
 # Local and production configuration files
 config/local.yaml
-config/airflow.yaml
+
+# Local Airflow configuration
+crypto_etl_config.json
 
 # AWS CLI / Local Generated Files
 aws/

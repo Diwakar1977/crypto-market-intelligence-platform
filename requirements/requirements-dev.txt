@@ -2,8 +2,6 @@ apache-airflow==3.2.1
 apache-airflow-providers-amazon
 
 pyspark==3.5.6
-pandas<3.0
-numpy
 requests
 
 boto3
