@@ -49,8 +49,7 @@ def _load_airflow_config() -> dict[str, Any]:
 
     if not isinstance(config, dict):
         raise TypeError(
-            "Airflow Variable 'crypto_etl_config' "
-            "must contain a JSON object."
+            "Airflow Variable 'crypto_etl_config' " "must contain a JSON object."
         )
 
     return config
