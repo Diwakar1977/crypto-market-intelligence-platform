@@ -1,0 +1,263 @@
+
+# =============================================================================
+# Crypto Market Intelligence Platform - Production CD Pipeline
+# =============================================================================
+# Deploys the exact commit that successfully passed the CI Pipeline.
+#
+# CD is responsible for promoting validated application code and production
+# dependencies to the AWS environment.
+#
+# Production deployment is allowed only after CI succeeds on the main branch.
+# AWS authentication is performed securely using GitHub Actions OIDC.
+# =============================================================================
+
+name: Production CD Pipeline
+
+
+# =============================================================================
+# TRIGGERS
+# =============================================================================
+# This workflow is triggered when the CI Pipeline completes.
+#
+# The deployment job independently verifies that:
+# - CI completed successfully.
+# - The CI run belongs to the main branch.
+#
+# This prevents failed or non-production CI runs from being deployed.
+# =============================================================================
+
+on:
+  workflow_run:
+    workflows:
+      - "CI Pipeline"
+
+    types:
+      - completed
+
+
+# =============================================================================
+# GLOBAL PERMISSIONS
+# =============================================================================
+# Grant only the GitHub token permissions required by the workflow.
+#
+# id-token: write
+#   Allows GitHub Actions to request an OIDC token for AWS authentication.
+#
+# contents: read
+#   Allows the workflow to check out the repository source code.
+# =============================================================================
+
+permissions:
+  id-token: write
+  contents: read
+
+
+# =============================================================================
+# GLOBAL ENVIRONMENT
+# =============================================================================
+# Deployment-specific values are provided through GitHub configuration.
+#
+# AWS_REGION and S3_BUCKET are non-sensitive repository/environment variables.
+# AWS_ROLE_ARN is stored as a secret because it identifies the IAM role used
+# for production deployment.
+# =============================================================================
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  S3_BUCKET: ${{ vars.S3_BUCKET }}
+
+
+# =============================================================================
+# JOBS
+# =============================================================================
+
+jobs:
+
+  # ===========================================================================
+  # PRODUCTION DEPLOYMENT
+  # ===========================================================================
+
+  deploy:
+    name: "Deploy to Production S3"
+
+    # -------------------------------------------------------------------------
+    # Deployment gate
+    #
+    # Deploy only when the CI Pipeline has successfully completed for main.
+    # The head_sha from this workflow run is used below to deploy the exact
+    # commit that CI validated.
+    # -------------------------------------------------------------------------
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+
+    # -------------------------------------------------------------------------
+    # Production environment
+    #
+    # The GitHub production environment can enforce deployment protection
+    # rules such as required approval before AWS resources are modified.
+    # -------------------------------------------------------------------------
+    environment:
+      name: production
+
+    permissions:
+      id-token: write
+      contents: read
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # -----------------------------------------------------------------------
+      # Checkout CI-approved commit
+      #
+      # Deploy the exact commit associated with the successful CI run rather
+      # than the current state of the main branch.
+      # -----------------------------------------------------------------------
+      - name: "Checkout CI-approved commit"
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+
+
+      # -----------------------------------------------------------------------
+      # AWS authentication
+      #
+      # GitHub Actions assumes the configured IAM role using OIDC.
+      # No long-lived AWS access keys are required in GitHub Secrets.
+      # -----------------------------------------------------------------------
+      - name: "Configure AWS credentials"
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+
+      # -----------------------------------------------------------------------
+      # Verify AWS identity
+      #
+      # Confirm that the workflow successfully assumed the expected IAM role
+      # before performing any production deployment operations.
+      # -----------------------------------------------------------------------
+      - name: "Verify AWS authentication"
+        run: |
+          aws sts get-caller-identity
+
+
+      # -----------------------------------------------------------------------
+      # Verify deployment target
+      #
+      # Confirm that the assumed IAM role can access the configured production
+      # S3 bucket before attempting to upload deployment files.
+      # -----------------------------------------------------------------------
+      - name: "Verify S3 bucket access"
+        run: |
+          aws s3 ls "s3://${S3_BUCKET}/"
+
+
+      # -----------------------------------------------------------------------
+      # Deploy production dependencies
+      #
+      # Upload the production dependency definition used by the MWAA
+      # environment.
+      # -----------------------------------------------------------------------
+      - name: "Upload production requirements"
+        run: |
+          aws s3 cp \
+            requirements/requirements.txt \
+            "s3://${S3_BUCKET}/requirements.txt"
+
+
+      # -----------------------------------------------------------------------
+      # Deploy configuration loader
+      #
+      # Upload config.py, which contains the application configuration-loading
+      # logic used by the production environment.
+      # -----------------------------------------------------------------------
+      - name: "Upload configuration loader"
+        run: |
+          aws s3 cp \
+            config/config.py \
+            "s3://${S3_BUCKET}/config/config.py"
+
+
+      # -----------------------------------------------------------------------
+      # Deploy ETL application
+      #
+      # Synchronize the application source code required by the production
+      # Spark/ETL workload.
+      #
+      # --delete keeps the S3 deployment directory aligned with the repository
+      # by removing files that no longer exist in the source directory.
+      # -----------------------------------------------------------------------
+      - name: "Upload ETL source code"
+        run: |
+          aws s3 sync \
+            src/ \
+            "s3://${S3_BUCKET}/src/" \
+            --delete
+
+
+      # -----------------------------------------------------------------------
+      # Deploy Airflow DAGs
+      #
+      # Synchronize DAGs and their supporting Python modules to the production
+      # Airflow/MWAA DAG location.
+      #
+      # --delete prevents obsolete DAG files from remaining in the deployment
+      # location after a source-code change.
+      # -----------------------------------------------------------------------
+      - name: "Upload Airflow DAGs"
+        run: |
+          aws s3 sync \
+            dags/ \
+            "s3://${S3_BUCKET}/dags/" \
+            --delete
+
+
+      # -----------------------------------------------------------------------
+      # Verify deployment
+      #
+      # Confirm that the primary production deployment paths are present in
+      # S3 after the upload operations complete successfully.
+      # -----------------------------------------------------------------------
+      - name: "Verify S3 deployment"
+        run: |
+          echo "Checking deployed files..."
+
+          echo "Checking requirements..."
+          aws s3 ls \
+            "s3://${S3_BUCKET}/requirements.txt"
+
+          echo "Checking configuration loader..."
+          aws s3 ls \
+            "s3://${S3_BUCKET}/config/config.py"
+
+          echo "Checking ETL source code..."
+          aws s3 ls \
+            "s3://${S3_BUCKET}/src/" \
+            --recursive
+
+          echo "Checking Airflow DAGs..."
+          aws s3 ls \
+            "s3://${S3_BUCKET}/dags/" \
+            --recursive
+
+
+      # -----------------------------------------------------------------------
+      # Deployment summary
+      #
+      # Record the deployment target and exact commit in the workflow logs
+      # for traceability and easier troubleshooting.
+      # -----------------------------------------------------------------------
+      - name: "Deployment summary"
+        run: |
+          echo "=============================================="
+          echo "PRODUCTION S3 DEPLOYMENT SUCCESS"
+          echo "=============================================="
+          echo "Bucket : ${S3_BUCKET}"
+          echo "Region : ${AWS_REGION}"
+          echo "Commit : ${{ github.event.workflow_run.head_sha }}"
+          echo "=============================================="

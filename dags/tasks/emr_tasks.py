@@ -141,7 +141,7 @@ def add_transform_step() -> EmrAddStepsOperator:
                 "spark-submit",
                 "--deploy-mode",
                 "cluster",
-                f"s3://{S3_BUCKET}/spark/jobs/transform_job.py",
+                f"s3://{S3_BUCKET}/src/transform/transform_job.py",
                 "--input",
                 f"s3://{S3_BUCKET}/{S3_RAW_PREFIX}",
                 "--output",

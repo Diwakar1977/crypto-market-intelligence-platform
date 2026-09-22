@@ -6,7 +6,7 @@ from pyspark.sql.types import StructType
 from config.config import CONFIG
 from src.load.redshift_schema_mapper import RedshiftSchemaMapper
 from src.load.redshift_storage import RedshiftStorage
-from src.spark.spark_session import SparkSessionFactory
+from spark.spark_session import SparkSessionFactory
 from src.utils.logger import Logger
 
 logger = Logger.get_logger(

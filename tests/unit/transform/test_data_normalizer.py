@@ -14,7 +14,7 @@ from pyspark.sql.types import (
     TimestampType,
 )
 
-from src.spark.spark_session import SparkSessionFactory
+from spark.spark_session import SparkSessionFactory
 from src.transform.data_normalizer import DataNormalizer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]

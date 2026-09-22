@@ -23,7 +23,7 @@ from dags.config.dag_config import (
 )
 from src.extract.extract_job import run_extract_job
 from src.load.load_job import run_load_job
-from src.spark.spark_session import SparkSessionFactory
+from spark.spark_session import SparkSessionFactory
 from src.transform.transform_job import run_transform_job
 
 # ============================================================

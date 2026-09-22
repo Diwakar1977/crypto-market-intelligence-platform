@@ -14,7 +14,7 @@ from pyspark.sql.types import (
     TimestampType,
 )
 
-from src.spark.spark_session import SparkSessionFactory
+from spark.spark_session import SparkSessionFactory
 from src.transform.feature_engineer import FeatureEngineer
 
 

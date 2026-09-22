@@ -6,7 +6,7 @@ import pytest
 from pyspark.errors.exceptions.captured import IllegalArgumentException
 from pyspark.sql import DataFrame, SparkSession
 
-from src.spark.spark_session import SparkSessionFactory
+from spark.spark_session import SparkSessionFactory
 from src.storage.parquet_writer import ParquetWriter
 
 # =====================================================================

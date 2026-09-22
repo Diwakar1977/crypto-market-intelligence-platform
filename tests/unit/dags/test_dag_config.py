@@ -64,7 +64,7 @@ def test_dag_start_date() -> None:
 
     assert dag_config.DAG_START_DATE.year == 2026
     assert dag_config.DAG_START_DATE.month == 9
-    assert dag_config.DAG_START_DATE.day == 10
+    assert dag_config.DAG_START_DATE.day == 23
 
 
 # =====================================================================

@@ -13,7 +13,7 @@ from pyspark.sql.types import (
     TimestampType,
 )
 
-from src.spark.spark_session import SparkSessionFactory
+from spark.spark_session import SparkSessionFactory
 from src.transform.data_validator import (
     DataValidator,
     ValidationResult,

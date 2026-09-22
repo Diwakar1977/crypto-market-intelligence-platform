@@ -4,7 +4,7 @@ import logging
 
 from pyspark.sql import SparkSession
 
-from src.spark.spark_session import SparkSessionFactory
+from spark.spark_session import SparkSessionFactory
 
 # Suppress unnecessary Py4J INFO/DEBUG logs during tests."
 py4j_logger = logging.getLogger("py4j")
