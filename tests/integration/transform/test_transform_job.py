@@ -9,9 +9,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pyspark.sql import DataFrame, SparkSession
 
+from spark.spark_session import SparkSessionFactory
 from src.schema.schema_inferer import SchemaInferer
 from src.schema.schema_manager import SchemaManager
-from spark.spark_session import SparkSessionFactory
 from src.storage.parquet_writer import ParquetWriter
 from src.storage.path_builder import PathBuilder
 from src.transform.data_normalizer import DataNormalizer

@@ -4,9 +4,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType
 
 from config.config import CONFIG
+from spark.spark_session import SparkSessionFactory
 from src.load.redshift_schema_mapper import RedshiftSchemaMapper
 from src.load.redshift_storage import RedshiftStorage
-from spark.spark_session import SparkSessionFactory
 from src.utils.logger import Logger
 
 logger = Logger.get_logger(

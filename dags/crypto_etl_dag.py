@@ -21,9 +21,9 @@ from dags.config.dag_config import (
     DAG_START_DATE,
     DAG_TAGS,
 )
+from spark.spark_session import SparkSessionFactory
 from src.extract.extract_job import run_extract_job
 from src.load.load_job import run_load_job
-from spark.spark_session import SparkSessionFactory
 from src.transform.transform_job import run_transform_job
 
 # ============================================================
