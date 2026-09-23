@@ -58,7 +58,7 @@ jobs:
 
   ruff:
     name: "Code Quality • Ruff"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: "Checkout repository"
@@ -87,7 +87,7 @@ jobs:
 
   black:
     name: "Code Quality • Black"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: "Checkout repository"
@@ -116,7 +116,7 @@ jobs:
 
   mypy:
     name: "Code Quality • Mypy"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: "Checkout repository"
@@ -135,6 +135,8 @@ jobs:
           python -m pip install -r requirements/requirements-dev.txt
 
       - name: "Run Mypy"
+        env:
+          MYPYPATH: ${{ github.workspace }}/dags
         run: |
           mypy src tests
 
@@ -149,7 +151,7 @@ jobs:
 
   unit-tests:
     name: "Tests • Unit Tests"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       ENV: ci
@@ -181,7 +183,7 @@ jobs:
 
   integration-tests:
     name: "Tests • Integration Tests"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       ENV: ci
@@ -213,7 +215,7 @@ jobs:
 
   coverage:
     name: "Tests • Coverage"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       ENV: ci
@@ -266,7 +268,7 @@ jobs:
 
   yaml-validation:
     name: "Validation • YAML"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: "Checkout repository"
@@ -339,7 +341,7 @@ jobs:
 
   python-compile:
     name: "Validation • Python Compile"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: "Checkout repository"
@@ -382,7 +384,7 @@ jobs:
 
   airflow-dag-import:
     name: "Validation • Airflow DAG Import"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       ENV: ci
@@ -479,7 +481,7 @@ jobs:
 
   config-validation:
     name: "Validation • Configuration"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: "Checkout repository"
@@ -639,7 +641,7 @@ jobs:
 
   package-import:
     name: "Build • Package Import"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: "Checkout repository"
@@ -705,7 +707,7 @@ jobs:
     needs:
       - package-import
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: "Download build artifact"
