@@ -4,13 +4,11 @@ from typing import Any
 
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.sdk import DAG
-
-from config.config import CONFIG
-from dags.callbacks.dag_callbacks import (
+from callbacks.dag_callbacks import (
     dag_failure_callback,
     dag_success_callback,
 )
-from dags.config.dag_config import (
+from dag_config import (
     DAG_CATCHUP,
     DAG_DEFAULT_ARGS,
     DAG_DESCRIPTION,
@@ -21,6 +19,8 @@ from dags.config.dag_config import (
     DAG_START_DATE,
     DAG_TAGS,
 )
+
+from config.config import CONFIG
 from spark.spark_session import SparkSessionFactory
 from src.extract.extract_job import run_extract_job
 from src.load.load_job import run_load_job
@@ -189,7 +189,7 @@ with DAG(
         # PRODUCTION - EMR
         # ----------------------------------------------------
 
-        from dags.tasks.emr_tasks import (
+        from tasks.emr_tasks import (
             add_transform_step,
             create_emr_cluster,
             terminate_emr_cluster,

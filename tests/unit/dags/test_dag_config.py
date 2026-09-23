@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from dags.config import dag_config
+from dags import dag_config
 
 # =====================================================================
 # DAG IDENTITY
