@@ -3,11 +3,15 @@
 # =============================================================================
 # Deploys the exact commit that successfully passed the CI Pipeline.
 #
-# CD is responsible for promoting validated application code and production
-# dependencies to the AWS environment.
+# CD responsibilities:
+#   1. Download the CI-approved commit
+#   2. Authenticate to AWS using GitHub Actions OIDC
+#   3. Upload production requirements to MWAA S3
+#   4. Build and upload MWAA plugins.zip
+#   5. Upload Airflow DAGs
+#   6. Verify the production S3 deployment
 #
-# Production deployment is allowed only after CI succeeds on the main branch.
-# AWS authentication is performed securely using GitHub Actions OIDC.
+# Production deployment is allowed only after CI succeeds on main.
 # =============================================================================
 
 name: Production CD Pipeline
@@ -15,14 +19,6 @@ name: Production CD Pipeline
 
 # =============================================================================
 # TRIGGERS
-# =============================================================================
-# This workflow is triggered when the CI Pipeline completes.
-#
-# The deployment job independently verifies that:
-# - CI completed successfully.
-# - The CI run belongs to the main branch.
-#
-# This prevents failed or non-production CI runs from being deployed.
 # =============================================================================
 
 on:
@@ -36,14 +32,6 @@ on:
 # =============================================================================
 # GLOBAL PERMISSIONS
 # =============================================================================
-# Grant only the GitHub token permissions required by the workflow.
-#
-# id-token: write
-#   Allows GitHub Actions to request an OIDC token for AWS authentication.
-#
-# contents: read
-#   Allows the workflow to check out the repository source code.
-# =============================================================================
 
 permissions:
   id-token: write
@@ -51,13 +39,7 @@ permissions:
 
 
 # =============================================================================
-# GLOBAL ENVIRONMENT
-# =============================================================================
-# Deployment-specific values are provided through GitHub configuration.
-#
-# AWS_REGION and S3_BUCKET are non-sensitive repository/environment variables.
-# AWS_ROLE_ARN is stored as a secret because it identifies the IAM role used
-# for production deployment.
+# GLOBAL ENVIRONMENT VARIABLES
 # =============================================================================
 
 env:
@@ -67,24 +49,19 @@ env:
 
 
 # =============================================================================
-# JOBS
+# DEPLOYMENT JOB
 # =============================================================================
 
 jobs:
 
-  # ===========================================================================
-  # PRODUCTION DEPLOYMENT
-  # ===========================================================================
-
   deploy:
+
     name: "Deploy to Production S3"
 
     # -------------------------------------------------------------------------
-    # Deployment gate
-    #
-    # Deploy only when the CI Pipeline has successfully completed for main.
-    # The head_sha from this workflow run is used below to deploy the exact
-    # commit that CI validated.
+    # Deploy only when:
+    #   - CI Pipeline completed successfully
+    #   - CI was triggered from main
     # -------------------------------------------------------------------------
 
     if: >
@@ -92,10 +69,10 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
 
     # -------------------------------------------------------------------------
-    # Production environment
+    # GitHub Environment
     #
-    # The GitHub production environment can enforce deployment protection
-    # rules such as required approval before AWS resources are modified.
+    # If production environment protection is configured,
+    # GitHub will require approval before this job proceeds.
     # -------------------------------------------------------------------------
 
     environment:
@@ -107,130 +84,199 @@ jobs:
 
     runs-on: ubuntu-24.04
 
+
+    # =========================================================================
+    # STEPS
+    # =========================================================================
+
     steps:
 
       # -----------------------------------------------------------------------
-      # Checkout CI-approved commit
-      #
-      # Deploy the exact commit associated with the successful CI run rather
-      # than the current state of the main branch.
+      # 1. Checkout the exact commit approved by CI
       # -----------------------------------------------------------------------
 
       - name: "Checkout CI-approved commit"
+
         uses: actions/checkout@v6
+
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
 
       # -----------------------------------------------------------------------
-      # AWS authentication
-      #
-      # GitHub Actions assumes the configured IAM role using OIDC.
-      # No long-lived AWS access keys are required in GitHub Secrets.
+      # 2. Configure AWS credentials using GitHub OIDC
       # -----------------------------------------------------------------------
 
       - name: "Configure AWS credentials"
+
         uses: aws-actions/configure-aws-credentials@v6
+
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
 
       # -----------------------------------------------------------------------
-      # Verify AWS identity
-      #
-      # Confirm that the workflow successfully assumed the expected IAM role
-      # before performing any production deployment operations.
+      # 3. Verify AWS authentication
       # -----------------------------------------------------------------------
 
       - name: "Verify AWS authentication"
+
         run: |
+          set -euo pipefail
+
           aws sts get-caller-identity
 
 
       # -----------------------------------------------------------------------
-      # Verify deployment target
-      #
-      # Confirm that the assumed IAM role can access the configured production
-      # S3 bucket before attempting to upload deployment files.
+      # 4. Verify S3 bucket access
       # -----------------------------------------------------------------------
 
       - name: "Verify S3 bucket access"
+
         run: |
+          set -euo pipefail
+
           aws s3 ls "s3://${S3_BUCKET}/"
 
 
       # -----------------------------------------------------------------------
-      # Deploy production dependencies
+      # 5. Upload production Python requirements
       #
-      # Upload the production dependency definition used by the MWAA
-      # environment.
+      # MWAA reads requirements.txt from the configured S3 location.
       # -----------------------------------------------------------------------
 
       - name: "Upload production requirements"
+
         run: |
+          set -euo pipefail
+
           aws s3 cp \
             requirements/requirements.txt \
             "s3://${S3_BUCKET}/requirements.txt"
 
 
       # -----------------------------------------------------------------------
-      # Build MWAA Python package
+      # 6. Build MWAA plugins.zip
       #
-      # Create a deployment ZIP containing:
+      # IMPORTANT:
       #
-      # src/
-      # config/
-      #   ├── __init__.py
-      #   └── config.py
+      # Your current MWAA environment loads application code from:
       #
-      # The build directory is generated only during the CD process and is
-      # not committed to the Git repository.
+      #     /usr/local/airflow/plugins/
+      #
+      # Therefore src/ and config/ must be included inside plugins.zip.
+      #
+      # Result:
+      #
+      # plugins.zip
+      # ├── src/
+      # │   ├── __init__.py
+      # │   ├── extract/
+      # │   ├── transform/
+      # │   ├── load/
+      # │   ├── notifications/
+      # │   ├── schema/
+      # │   ├── storage/
+      # │   └── utils/
+      # │
+      # └── config/
+      #     ├── __init__.py
+      #     └── config.py
+      #
+      # This allows:
+      #
+      #     from src.notifications.sns_notification import SNSNotification
+      #
+      # and:
+      #
+      #     from config.config import CONFIG
+      #
+      # to resolve inside MWAA.
       # -----------------------------------------------------------------------
 
-      - name: "Build MWAA Python package"
+      - name: "Build MWAA plugins package"
+
         run: |
-          rm -rf build/crypto_etl_mwaa
+          set -euo pipefail
 
-          mkdir -p build/crypto_etl_mwaa/src
-          mkdir -p build/crypto_etl_mwaa/config
+          rm -rf build/plugins
+          rm -f build/plugins.zip
 
-          cp -r src/* build/crypto_etl_mwaa/src/
+          mkdir -p build/plugins/src
+          mkdir -p build/plugins/config
 
-          cp config/__init__.py build/crypto_etl_mwaa/config/
-          cp config/config.py build/crypto_etl_mwaa/config/
+          # Copy application source code
+          cp -r src/. build/plugins/src/
 
-          cd build/crypto_etl_mwaa
-          zip -r ../crypto_etl_mwaa.zip src config
+          # Copy application configuration package
+          cp config/__init__.py build/plugins/config/
+          cp config/config.py build/plugins/config/
+
+          # Remove Python cache files from the deployment package
+          find build/plugins -type d -name "__pycache__" -prune -exec rm -rf {} +
+          find build/plugins -type f -name "*.pyc" -delete
+
+          # Create plugins.zip with src/ and config/ at the ZIP root
+          cd build/plugins
+
+          zip -r ../plugins.zip \
+            src \
+            config
+
           cd ../..
 
+          echo "=============================================="
+          echo "MWAA plugins.zip created"
+          echo "=============================================="
+
+          unzip -l build/plugins.zip
+
 
       # -----------------------------------------------------------------------
-      # Upload MWAA Python package
+      # 7. Upload plugins.zip to MWAA S3
       #
-      # Upload the generated application package to the production S3 bucket.
+      # IMPORTANT:
+      #
+      # This must match the S3 path configured in the MWAA environment.
+      #
+      # If MWAA is configured with:
+      #
+      #     plugins.zip
+      #
+      # then this upload is correct.
       # -----------------------------------------------------------------------
 
-      - name: "Upload MWAA Python package"
+      - name: "Upload MWAA plugins package"
+
         run: |
+          set -euo pipefail
+
           aws s3 cp \
-            build/crypto_etl_mwaa.zip \
-            "s3://${S3_BUCKET}/crypto_etl_mwaa.zip"
+            build/plugins.zip \
+            "s3://${S3_BUCKET}/plugins.zip"
 
 
       # -----------------------------------------------------------------------
-      # Deploy Airflow DAGs
+      # 8. Upload Airflow DAGs
       #
-      # Synchronize DAGs and their supporting Python modules to the production
-      # Airflow/MWAA DAG location.
+      # Local:
       #
-      # --delete prevents obsolete DAG files from remaining in the deployment
-      # location after a source-code change.
+      #     dags/
+      #
+      # S3:
+      #
+      #     s3://<bucket>/dags/
+      #
+      # MWAA reads DAGs from the configured DAGs S3 path.
       # -----------------------------------------------------------------------
 
       - name: "Upload Airflow DAGs"
+
         run: |
+          set -euo pipefail
+
           aws s3 sync \
             dags/ \
             "s3://${S3_BUCKET}/dags/" \
@@ -238,44 +284,64 @@ jobs:
 
 
       # -----------------------------------------------------------------------
-      # Verify deployment
-      #
-      # Confirm that the primary production deployment artifacts are present
-      # in S3 after the upload operations complete successfully.
+      # 9. Verify production S3 deployment
       # -----------------------------------------------------------------------
 
       - name: "Verify S3 deployment"
-        run: |
-          echo "Checking deployed files..."
 
-          echo "Checking requirements..."
+        run: |
+          set -euo pipefail
+
+          echo "=============================================="
+          echo "Checking production deployment..."
+          echo "=============================================="
+
+
+          echo ""
+          echo "Checking requirements.txt..."
+
           aws s3 ls \
             "s3://${S3_BUCKET}/requirements.txt"
 
-          echo "Checking MWAA Python package..."
-          aws s3 ls \
-            "s3://${S3_BUCKET}/crypto_etl_mwaa.zip"
 
+          echo ""
+          echo "Checking plugins.zip..."
+
+          aws s3 ls \
+            "s3://${S3_BUCKET}/plugins.zip"
+
+
+          echo ""
           echo "Checking Airflow DAGs..."
+
           aws s3 ls \
             "s3://${S3_BUCKET}/dags/" \
             --recursive
 
 
+          echo ""
+          echo "=============================================="
+          echo "S3 deployment verification completed"
+          echo "=============================================="
+
+
       # -----------------------------------------------------------------------
-      # Deployment summary
-      #
-      # Record the deployment target and exact commit in the workflow logs
-      # for traceability and easier troubleshooting.
+      # 10. Deployment summary
       # -----------------------------------------------------------------------
 
       - name: "Deployment summary"
+
         run: |
+          echo ""
           echo "=============================================="
           echo "PRODUCTION S3 DEPLOYMENT SUCCESS"
           echo "=============================================="
-          echo "Bucket : ${S3_BUCKET}"
-          echo "Region : ${AWS_REGION}"
-          echo "Package: crypto_etl_mwaa.zip"
-          echo "Commit : ${{ github.event.workflow_run.head_sha }}"
+          echo ""
+          echo "Bucket      : ${S3_BUCKET}"
+          echo "Region      : ${AWS_REGION}"
+          echo "Requirements: requirements.txt"
+          echo "Plugins     : plugins.zip"
+          echo "DAGs        : dags/"
+          echo "Commit      : ${{ github.event.workflow_run.head_sha }}"
+          echo ""
           echo "=============================================="
