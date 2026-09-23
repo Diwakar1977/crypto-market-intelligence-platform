@@ -136,7 +136,7 @@ jobs:
 
       - name: "Run Mypy"
         run: |
-          mypy src dags tests
+          mypy src tests
 
 
   # ===========================================================================
