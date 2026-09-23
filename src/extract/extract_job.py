@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from config.config import CONFIG
+from src.config.config import CONFIG
 from src.extract.coingecko_client import CoinGeckoClient
 from src.storage.path_builder import PathBuilder
 from src.storage.s3_storage import S3Storage

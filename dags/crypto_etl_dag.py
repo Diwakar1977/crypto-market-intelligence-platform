@@ -20,8 +20,8 @@ from dag_config import (
     DAG_TAGS,
 )
 
-from config.config import CONFIG
 from spark.spark_session import SparkSessionFactory
+from src.config.config import CONFIG
 from src.extract.extract_job import run_extract_job
 from src.load.load_job import run_load_job
 from src.transform.transform_job import run_transform_job

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pyspark.sql import SparkSession
 
-from config.config import CONFIG
+from src.config.config import CONFIG
 from src.utils.logger import Logger
 
 logger = Logger.get_logger(

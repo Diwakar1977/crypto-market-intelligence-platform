@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from config.config import CONFIG
+from src.config.config import CONFIG
 from src.storage.path_builder import PathBuilder
 from src.utils.logger import Logger
 

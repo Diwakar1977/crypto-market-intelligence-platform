@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from config.config import CONFIG
+from src.config.config import CONFIG
 from src.utils.logger import Logger
 
 

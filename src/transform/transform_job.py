@@ -6,8 +6,8 @@ import sys
 import boto3
 from pyspark.sql import DataFrame, SparkSession
 
-from config.config import CONFIG
 from spark.spark_session import SparkSessionFactory
+from src.config.config import CONFIG
 from src.schema.schema_inferer import SchemaInferer
 from src.schema.schema_manager import SchemaManager
 from src.storage.parquet_writer import ParquetWriter

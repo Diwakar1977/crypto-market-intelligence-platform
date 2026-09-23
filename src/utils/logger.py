@@ -5,7 +5,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from config.config import CONFIG
+from src.config.config import CONFIG
 
 
 class Logger:

@@ -2,7 +2,7 @@ from typing import Any
 
 import requests
 
-from config.config import CONFIG
+from src.config.config import CONFIG
 from src.utils.logger import Logger
 
 logger = Logger.get_logger(

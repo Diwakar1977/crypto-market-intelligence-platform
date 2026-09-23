@@ -1,4 +1,4 @@
-from config.config import CONFIG
+from src.config.config import CONFIG
 
 
 def test_config_loads() -> None:

@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType
 
-from config.config import CONFIG
 from spark.spark_session import SparkSessionFactory
+from src.config.config import CONFIG
 from src.load.redshift_schema_mapper import RedshiftSchemaMapper
 from src.load.redshift_storage import RedshiftStorage
 from src.utils.logger import Logger

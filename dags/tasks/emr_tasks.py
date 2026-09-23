@@ -13,7 +13,7 @@ from airflow.providers.amazon.aws.sensors.emr import (
 )
 from airflow.sdk import TriggerRule
 
-from config.config import CONFIG
+from src.config.config import CONFIG
 
 # ------------------------------------
 # CONFIGURATION
