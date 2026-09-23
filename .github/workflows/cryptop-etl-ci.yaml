@@ -136,7 +136,7 @@ jobs:
 
       - name: "Run Mypy"
         env:
-          MYPYPATH: ${{ github.workspace }}/dags
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src:${{ github.workspace }}/dags
         run: |
           mypy src tests
 
