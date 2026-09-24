@@ -73,6 +73,7 @@ jobs:
 
       - name: "Install dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
 
@@ -102,6 +103,7 @@ jobs:
 
       - name: "Install dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
 
@@ -131,6 +133,7 @@ jobs:
 
       - name: "Install dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
 
@@ -169,11 +172,13 @@ jobs:
 
       - name: "Install dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
 
       - name: "Run Unit Tests"
         run: |
+          set -euo pipefail
           pytest tests/unit -v
 
 
@@ -201,11 +206,13 @@ jobs:
 
       - name: "Install dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
 
       - name: "Run Integration Tests"
         run: |
+          set -euo pipefail
           pytest tests/integration -v
 
 
@@ -234,11 +241,13 @@ jobs:
 
       - name: "Install dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
 
       - name: "Run Tests with Coverage"
         run: |
+          set -euo pipefail
           pytest tests \
             --cov=src \
             --cov-report=term-missing \
@@ -283,11 +292,14 @@ jobs:
 
       - name: "Install YAML validator"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install PyYAML
 
       - name: "Validate YAML files"
         run: |
+          set -euo pipefail
+
           python - <<'PY'
           from pathlib import Path
           import sys
@@ -356,6 +368,8 @@ jobs:
 
       - name: "Compile Python files"
         run: |
+          set -euo pipefail
+
           directories=()
 
           if [ -d src ]; then
@@ -402,16 +416,20 @@ jobs:
 
       - name: "Install dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
 
       - name: "Configure CI environment"
         run: |
+          set -euo pipefail
           echo "AIRFLOW_HOME=${{ runner.temp }}/airflow" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/src:${GITHUB_WORKSPACE}/dags" >> "$GITHUB_ENV"
 
       - name: "Import Airflow DAGs"
         run: |
+          set -euo pipefail
+
           python - <<'PY'
           from pathlib import Path
           import importlib.util
@@ -496,15 +514,19 @@ jobs:
 
       - name: "Install dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
 
       - name: "Configure local environment"
         run: |
+          set -euo pipefail
           echo "PYTHONPATH=${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/src:${GITHUB_WORKSPACE}/dags" >> "$GITHUB_ENV"
 
       - name: "Validate configuration"
         run: |
+          set -euo pipefail
+
           python - <<'PY'
           from pathlib import Path
           import sys
@@ -518,6 +540,7 @@ jobs:
           REQUIRED_CONFIG_FILES = [
               CONFIG_DIR / "ci.yaml",
           ]
+
 
           REQUIRED_SECTIONS = [
               "application",
@@ -656,12 +679,15 @@ jobs:
 
       - name: "Install build dependencies"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements/requirements-dev.txt
           python -m pip install build
 
       - name: "Build Python package"
         run: |
+          set -euo pipefail
+
           if [ -f pyproject.toml ]; then
             python -m build
           else
@@ -673,6 +699,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
         run: |
+          set -euo pipefail
+
           python - <<'PY'
           import importlib
 
@@ -680,6 +708,7 @@ jobs:
           try:
               importlib.import_module("src")
               print("PACKAGE IMPORT OK: src")
+
 
           except ModuleNotFoundError:
               print(
@@ -723,11 +752,14 @@ jobs:
 
       - name: "Install validation tools"
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install twine
 
       - name: "Validate package metadata"
         run: |
+          set -euo pipefail
+
           if compgen -G "dist/*" > /dev/null; then
             twine check dist/*
           else
@@ -737,6 +769,8 @@ jobs:
 
       - name: "Display build artifacts"
         run: |
+          set -euo pipefail
+
           if [ -d dist ]; then
             ls -lah dist/
           else
@@ -745,6 +779,8 @@ jobs:
 
       - name: "Build validation completed"
         run: |
+          set -euo pipefail
+
           echo "=============================================="
           echo " CI build validation completed"
           echo "=============================================="

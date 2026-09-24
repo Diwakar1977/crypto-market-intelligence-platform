@@ -159,7 +159,6 @@ def test_add_transform_step() -> None:
 
     assert step["Name"] == "crypto-market-transform"
 
-    # Must match production emr_tasks.py.
     assert step["ActionOnFailure"] == "CANCEL_AND_WAIT"
 
     hadoop_step = cast(
@@ -170,14 +169,23 @@ def test_add_transform_step() -> None:
     assert hadoop_step["Jar"] == "command-runner.jar"
 
     assert hadoop_step["Args"] == [
-        "spark-submit",
-        "--deploy-mode",
-        "cluster",
-        (f"s3://{S3_BUCKET}/" "src/transform/transform_job.py"),
-        "--input",
-        (f"s3://{S3_BUCKET}/" f"{S3_RAW_PREFIX}"),
-        "--output",
-        (f"s3://{S3_BUCKET}/" f"{S3_PROCESSED_PREFIX}"),
+        "bash",
+        "-c",
+        (
+            "set -euo pipefail; "
+            "rm -rf /tmp/crypto_etl_spark; "
+            "mkdir -p /tmp/crypto_etl_spark; "
+            f"aws s3 cp "
+            f"s3://{S3_BUCKET}/spark/crypto_etl_spark.zip "
+            "/tmp/crypto_etl_spark.zip; "
+            "unzip -q /tmp/crypto_etl_spark.zip "
+            "-d /tmp/crypto_etl_spark; "
+            "spark-submit "
+            "--deploy-mode cluster "
+            "/tmp/crypto_etl_spark/src/transform/transform_job.py "
+            f"--input s3://{S3_BUCKET}/{S3_RAW_PREFIX} "
+            f"--output s3://{S3_BUCKET}/{S3_PROCESSED_PREFIX}"
+        ),
     ]
 
 

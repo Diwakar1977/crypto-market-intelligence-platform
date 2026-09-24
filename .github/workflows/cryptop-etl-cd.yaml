@@ -7,7 +7,7 @@
 #   1. Checkout the CI-approved commit
 #   2. Connect to AWS using GitHub OIDC
 #   3. Upload production requirements
-#   4. Build and upload MWAA plugins.zip
+#   4. Build and upload crypto_etl_spark.zip
 #   5. Upload Airflow DAGs
 #   6. Verify the S3 deployment
 # =============================================================================
@@ -79,9 +79,7 @@ jobs:
       # -----------------------------------------------------------------------
 
       - name: "Checkout CI-approved commit"
-
         uses: actions/checkout@v6
-
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
@@ -92,9 +90,7 @@ jobs:
       # -----------------------------------------------------------------------
 
       - name: "Configure AWS credentials"
-
         uses: aws-actions/configure-aws-credentials@v6
-
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -105,7 +101,6 @@ jobs:
       # -----------------------------------------------------------------------
 
       - name: "Verify AWS authentication"
-
         run: |
           set -euo pipefail
           aws sts get-caller-identity
@@ -116,7 +111,6 @@ jobs:
       # -----------------------------------------------------------------------
 
       - name: "Verify S3 bucket access"
-
         run: |
           set -euo pipefail
           aws s3 ls "s3://${S3_BUCKET}/"
@@ -127,7 +121,6 @@ jobs:
       # -----------------------------------------------------------------------
 
       - name: "Upload production requirements"
-
         run: |
           set -euo pipefail
 
@@ -137,7 +130,7 @@ jobs:
 
 
       # -----------------------------------------------------------------------
-      # 6. Build MWAA plugins.zip
+      # 6. Build crypto_etl_spark.zip
       #
       # Only src/ is packaged.
       #
@@ -145,51 +138,57 @@ jobs:
       #
       #     crypto_etl_config
       #
-      # Therefore config/ is NOT included in plugins.zip.
+      # Therefore config/ is NOT included separately.
       # -----------------------------------------------------------------------
 
-      - name: "Build MWAA plugins package"
-
+      - name: "Build EMR Spark package"
         run: |
           set -euo pipefail
 
-          rm -rf build/plugins
-          rm -f build/plugins.zip
+          rm -rf build/crypto_etl_spark
+          rm -f build/crypto_etl_spark.zip
 
-          mkdir -p build/plugins/src
+          mkdir -p build/crypto_etl_spark
 
           # Copy application source code
-          cp -r src/. build/plugins/src/
+          cp -r src build/crypto_etl_spark/
 
           # Remove Python cache files
-          find build/plugins -type d -name "__pycache__" -prune -exec rm -rf {} +
-          find build/plugins -type f -name "*.pyc" -delete
+          find build/crypto_etl_spark \
+            -type d \
+            -name "__pycache__" \
+            -prune \
+            -exec rm -rf {} +
 
-          # Create plugins.zip
-          cd build/plugins
+          find build/crypto_etl_spark \
+            -type f \
+            -name "*.pyc" \
+            -delete
 
-          zip -r ../plugins.zip \
+          # Create crypto_etl_spark.zip
+          cd build/crypto_etl_spark
+
+          zip -r ../crypto_etl_spark.zip \
             src
 
           cd ../..
 
-          echo "MWAA plugins.zip created"
+          echo "crypto_etl_spark.zip created"
 
-          unzip -l build/plugins.zip
+          unzip -l build/crypto_etl_spark.zip
 
 
       # -----------------------------------------------------------------------
-      # 7. Upload plugins.zip
+      # 7. Upload crypto_etl_spark.zip
       # -----------------------------------------------------------------------
 
-      - name: "Upload MWAA plugins package"
-
+      - name: "Upload EMR Spark package"
         run: |
           set -euo pipefail
 
           aws s3 cp \
-            build/plugins.zip \
-            "s3://${S3_BUCKET}/plugins.zip"
+            build/crypto_etl_spark.zip \
+            "s3://${S3_BUCKET}/spark/crypto_etl_spark.zip"
 
 
       # -----------------------------------------------------------------------
@@ -197,7 +196,6 @@ jobs:
       # -----------------------------------------------------------------------
 
       - name: "Upload Airflow DAGs"
-
         run: |
           set -euo pipefail
 
@@ -212,7 +210,6 @@ jobs:
       # -----------------------------------------------------------------------
 
       - name: "Verify S3 deployment"
-
         run: |
           set -euo pipefail
 
@@ -220,9 +217,9 @@ jobs:
           aws s3 ls \
             "s3://${S3_BUCKET}/requirements.txt"
 
-          echo "Checking plugins.zip..."
+          echo "Checking crypto_etl_spark.zip..."
           aws s3 ls \
-            "s3://${S3_BUCKET}/plugins.zip"
+            "s3://${S3_BUCKET}/spark/crypto_etl_spark.zip"
 
           echo "Checking Airflow DAGs..."
           aws s3 ls \
@@ -245,7 +242,7 @@ jobs:
           echo "Bucket      : ${S3_BUCKET}"
           echo "Region      : ${AWS_REGION}"
           echo "Requirements: requirements.txt"
-          echo "Plugins     : plugins.zip"
+          echo "Spark       : spark/crypto_etl_spark.zip"
           echo "DAGs        : dags/"
           echo "Commit      : ${{ github.event.workflow_run.head_sha }}"
           echo "=============================================="
