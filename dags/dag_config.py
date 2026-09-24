@@ -30,7 +30,7 @@ DAG_SCHEDULE = "0 9 * * *"
 # START DATE
 # ---------------------------------------------------
 
-DAG_START_DATE = timezone.datetime(2026, 9, 23)
+DAG_START_DATE = timezone.datetime(2026, 9, 25)
 
 # ---------------------------------------------------
 # DAG BEHAVIOUR
