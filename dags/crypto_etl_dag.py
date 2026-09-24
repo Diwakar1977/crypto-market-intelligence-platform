@@ -22,7 +22,6 @@ from dag_config import (
 
 from src.config.config import CONFIG
 from src.extract.extract_job import run_extract_job
-from src.transform.transform_job import run_transform_job
 
 # ============================================================
 # CONFIGURATION
@@ -78,6 +77,7 @@ def execute_local_transform(**context: Any) -> str:
     Parquet data is written to S3.
     """
     from spark.spark_session import SparkSessionFactory
+    from src.transform.transform_job import run_transform_job
 
     task_instance = context["ti"]
 
