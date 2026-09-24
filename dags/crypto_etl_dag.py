@@ -20,7 +20,6 @@ from dag_config import (
     DAG_TAGS,
 )
 
-from spark.spark_session import SparkSessionFactory
 from src.config.config import CONFIG
 from src.extract.extract_job import run_extract_job
 from src.load.load_job import run_load_job
@@ -79,6 +78,7 @@ def execute_local_transform(**context: Any) -> str:
     Raw data is read from S3 and processed.
     Parquet data is written to S3.
     """
+    from spark.spark_session import SparkSessionFactory
 
     task_instance = context["ti"]
 
