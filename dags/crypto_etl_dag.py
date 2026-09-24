@@ -122,7 +122,6 @@ def execute_load() -> Any:
     All Redshift implementation details are handled
     internally by run_load_job().
     """
-    from src.load.load_job import run_load_job
 
     return run_load_job()
 
