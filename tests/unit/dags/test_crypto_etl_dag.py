@@ -186,7 +186,7 @@ def test_execute_local_transform_stops_spark_on_failure(
 # ============================================================
 
 
-@patch("dags.crypto_etl_dag.run_load_job")
+@patch("src.load.load_job.run_load_job")
 def test_execute_load(
     mock_run_load_job: MagicMock,
 ) -> None:
