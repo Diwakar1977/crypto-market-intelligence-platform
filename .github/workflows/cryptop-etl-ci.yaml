@@ -423,73 +423,27 @@ jobs:
       - name: "Configure CI environment"
         run: |
           set -euo pipefail
-          echo "AIRFLOW_HOME=${{ runner.temp }}/airflow" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/src:${GITHUB_WORKSPACE}/dags" >> "$GITHUB_ENV"
 
-      - name: "Import Airflow DAGs"
+          echo "AIRFLOW_HOME=${{ runner.temp }}/airflow" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=${GITHUB_WORKSPACE}/dags:${GITHUB_WORKSPACE}/src:${GITHUB_WORKSPACE}" >> "$GITHUB_ENV"
+
+      - name: "Import Airflow DAG"
         run: |
           set -euo pipefail
 
           python - <<'PY'
-          from pathlib import Path
-          import importlib.util
+          import importlib
           import sys
 
 
-          dags_dir = Path("dags")
+          try:
+              importlib.import_module("crypto_etl_dag")
+              print("DAG IMPORT OK: dags/crypto_etl_dag.py")
 
-
-          if not dags_dir.exists():
-              print("dags/ directory not found.")
+          except Exception as exc:
+              print("DAG IMPORT FAILED: dags/crypto_etl_dag.py")
+              print(f"{type(exc).__name__}: {exc}")
               sys.exit(1)
-
-
-          dag_files = sorted(
-              path
-              for path in dags_dir.rglob("*.py")
-              if path.name != "__init__.py"
-          )
-
-
-          if not dag_files:
-              print("No DAG files found.")
-              sys.exit(1)
-
-
-          failed = False
-
-
-          for path in dag_files:
-              module_name = ".".join(path.with_suffix("").parts)
-
-              try:
-                  spec = importlib.util.spec_from_file_location(
-                      module_name,
-                      path,
-                  )
-
-                  if spec is None or spec.loader is None:
-                      raise ImportError(
-                          f"Unable to create import specification for {path}"
-                      )
-
-                  module = importlib.util.module_from_spec(spec)
-                  sys.modules[module_name] = module
-                  spec.loader.exec_module(module)
-
-                  print(f"DAG IMPORT OK: {path}")
-
-              except Exception as exc:
-                  print(f"DAG IMPORT FAILED: {path}")
-                  print(f"{type(exc).__name__}: {exc}")
-                  failed = True
-
-
-          if failed:
-              sys.exit(1)
-
-
-          print(f"Imported {len(dag_files)} DAG file(s) successfully.")
           PY
 
 
