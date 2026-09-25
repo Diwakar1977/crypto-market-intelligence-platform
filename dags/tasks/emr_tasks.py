@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from airflow.providers.amazon.aws.operators.emr import (
@@ -11,13 +12,26 @@ from airflow.providers.amazon.aws.sensors.emr import (
     EmrJobFlowSensor,
     EmrStepSensor,
 )
-from airflow.sdk import TriggerRule
+from airflow.sdk import TriggerRule, Variable
 
-from src.config.config import CONFIG
 
-# ------------------------------------
-# CONFIGURATION
-# ------------------------------------
+def _load_config() -> dict[str, Any]:
+    """Load configuration based on the current environment."""
+
+    environment = os.getenv("ENV", "").strip().lower()
+
+    if environment in {"local", "ci"}:
+        from src.config.config import CONFIG
+
+        return CONFIG
+
+    return Variable.get(
+        "crypto_etl_config",
+        deserialize_json=True,
+    )
+
+
+CONFIG = _load_config()
 
 AWS_CONFIG = CONFIG["aws"]
 EMR_CONFIG = CONFIG["emr"]
