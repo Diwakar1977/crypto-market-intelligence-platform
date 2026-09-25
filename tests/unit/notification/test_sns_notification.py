@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from botocore.exceptions import BotoCoreError, ClientError
 
-from src.notifications.sns_notification import SNSNotification
+from dags.notifications.sns_notification import SNSNotification
 
 # ============================================================
 # CONSTANTS
@@ -46,11 +46,11 @@ def test_sns_client_initialization(
 
     with (
         patch(
-            "src.notifications.sns_notification.boto3.client",
+            "dags.notifications.sns_notification.boto3.client",
             return_value=mock_boto_client,
         ) as mock_client,
         patch(
-            "src.notifications.sns_notification.CONFIG",
+            "dags.notifications.sns_notification.CONFIG",
             AWS_CONFIG,
         ),
     ):
@@ -82,11 +82,11 @@ def test_publish_success(
 
     with (
         patch(
-            "src.notifications.sns_notification.boto3.client",
+            "dags.notifications.sns_notification.boto3.client",
             return_value=mock_boto_client,
         ),
         patch(
-            "src.notifications.sns_notification.CONFIG",
+            "dags.notifications.sns_notification.CONFIG",
             AWS_CONFIG,
         ),
     ):
@@ -127,11 +127,11 @@ def test_publish_without_topic_arn(
 
     with (
         patch(
-            "src.notifications.sns_notification.boto3.client",
+            "dags.notifications.sns_notification.boto3.client",
             return_value=mock_boto_client,
         ),
         patch(
-            "src.notifications.sns_notification.CONFIG",
+            "dags.notifications.sns_notification.CONFIG",
             config,
         ),
     ):
@@ -164,11 +164,11 @@ def test_publish_empty_subject(
 
     with (
         patch(
-            "src.notifications.sns_notification.boto3.client",
+            "dags.notifications.sns_notification.boto3.client",
             return_value=mock_boto_client,
         ),
         patch(
-            "src.notifications.sns_notification.CONFIG",
+            "dags.notifications.sns_notification.CONFIG",
             AWS_CONFIG,
         ),
     ):
@@ -201,11 +201,11 @@ def test_publish_empty_message(
 
     with (
         patch(
-            "src.notifications.sns_notification.boto3.client",
+            "dags.notifications.sns_notification.boto3.client",
             return_value=mock_boto_client,
         ),
         patch(
-            "src.notifications.sns_notification.CONFIG",
+            "dags.notifications.sns_notification.CONFIG",
             AWS_CONFIG,
         ),
     ):
@@ -245,11 +245,11 @@ def test_publish_client_error(
 
     with (
         patch(
-            "src.notifications.sns_notification.boto3.client",
+            "dags.notifications.sns_notification.boto3.client",
             return_value=mock_boto_client,
         ),
         patch(
-            "src.notifications.sns_notification.CONFIG",
+            "dags.notifications.sns_notification.CONFIG",
             AWS_CONFIG,
         ),
     ):
@@ -280,11 +280,11 @@ def test_publish_botocore_error(
 
     with (
         patch(
-            "src.notifications.sns_notification.boto3.client",
+            "dags.notifications.sns_notification.boto3.client",
             return_value=mock_boto_client,
         ),
         patch(
-            "src.notifications.sns_notification.CONFIG",
+            "dags.notifications.sns_notification.CONFIG",
             AWS_CONFIG,
         ),
     ):
@@ -310,7 +310,7 @@ def test_sns_client_initialization_error() -> None:
 
     with (
         patch(
-            "src.notifications.sns_notification.boto3.client",
+            "dags.notifications.sns_notification.boto3.client",
             side_effect=ClientError(
                 {
                     "Error": {
@@ -322,7 +322,7 @@ def test_sns_client_initialization_error() -> None:
             ),
         ),
         patch(
-            "src.notifications.sns_notification.CONFIG",
+            "dags.notifications.sns_notification.CONFIG",
             AWS_CONFIG,
         ),
         pytest.raises(
