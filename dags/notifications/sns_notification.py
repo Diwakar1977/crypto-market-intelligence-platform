@@ -1,15 +1,40 @@
 from __future__ import annotations
 
+import logging
+import os
+
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from src.config.config import CONFIG
-from src.utils.logger import Logger
+logger = logging.getLogger(__name__)
 
-logger = Logger.get_logger(
-    "sns_notification",
-    "sns_notification.log",
-)
+
+def _load_config():
+    """Load configuration based on the current environment."""
+
+    environment = (
+        os.getenv(
+            "ENV",
+            "",
+        )
+        .strip()
+        .lower()
+    )
+
+    if environment in {"local", "ci"}:
+        from src.config.config import CONFIG
+
+        return CONFIG
+
+    from airflow.sdk import Variable
+
+    return Variable.get(
+        "crypto_etl_config",
+        deserialize_json=True,
+    )
+
+
+CONFIG = _load_config()
 
 
 class SNSNotification:
