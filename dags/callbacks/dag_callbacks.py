@@ -5,8 +5,8 @@ from dag_config import (
     NOTIFICATION_ON_FAILURE,
     NOTIFICATION_ON_SUCCESS,
 )
+from notifications.email_template import EmailTemplate
 
-from src.notifications.email_template import EmailTemplate
 from src.notifications.sns_notification import SNSNotification
 from src.utils.logger import Logger
 

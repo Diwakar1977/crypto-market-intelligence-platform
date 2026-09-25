@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.notifications.email_template import EmailTemplate
+from dags.notifications.email_template import EmailTemplate
 from src.utils.logger import Logger
 
 
