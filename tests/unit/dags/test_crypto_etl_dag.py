@@ -17,7 +17,7 @@ from dags.crypto_etl_dag import (
 # ============================================================
 
 
-@patch("dags.crypto_etl_dag.run_extract_job")
+@patch("src.extract.extract_job.run_extract_job")
 def test_execute_extract(
     mock_run_extract_job: MagicMock,
 ) -> None:
