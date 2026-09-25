@@ -21,8 +21,6 @@ from dag_config import (
     DAG_TAGS,
 )
 
-from src.extract.extract_job import run_extract_job
-
 # ============================================================
 # CONFIGURATION
 # ============================================================
@@ -81,6 +79,7 @@ def execute_extract() -> dict[str, Any]:
     CoinGecko data is extracted and raw data
     is stored in S3.
     """
+    from src.extract.extract_job import run_extract_job
 
     result = run_extract_job()
 
