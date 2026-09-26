@@ -55,6 +55,9 @@ emr:
 
   subnet_id: ""
 
+  security_group_id: ""
+  service_access_security_group_id: ""
+
   master_instance_type: ""
   core_instance_type: ""
   core_instance_count: 1

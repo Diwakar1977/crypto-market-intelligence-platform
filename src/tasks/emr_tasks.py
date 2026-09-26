@@ -29,6 +29,11 @@ EMR_CLUSTER_NAME = str(EMR_CONFIG["cluster_name"])
 EMR_RELEASE = str(EMR_CONFIG["release"])
 EMR_SUBNET_ID = str(EMR_CONFIG["subnet_id"])
 
+EMR_SECURITY_GROUP_ID = str(EMR_CONFIG["security_group_id"])
+EMR_SERVICE_ACCESS_SECURITY_GROUP_ID = str(
+    EMR_CONFIG["service_access_security_group_id"]
+)
+
 EMR_MASTER_INSTANCE_TYPE = str(EMR_CONFIG["master_instance_type"])
 EMR_CORE_INSTANCE_TYPE = str(EMR_CONFIG["core_instance_type"])
 
@@ -63,6 +68,9 @@ def create_emr_cluster() -> EmrCreateJobFlowOperator:
         ],
         "Instances": {
             "Ec2SubnetId": EMR_SUBNET_ID,
+            "EmrManagedMasterSecurityGroup": EMR_SECURITY_GROUP_ID,
+            "EmrManagedSlaveSecurityGroup": EMR_SECURITY_GROUP_ID,
+            "ServiceAccessSecurityGroup": EMR_SERVICE_ACCESS_SECURITY_GROUP_ID,
             "KeepJobFlowAliveWhenNoSteps": True,
             "TerminationProtected": False,
             "InstanceGroups": [

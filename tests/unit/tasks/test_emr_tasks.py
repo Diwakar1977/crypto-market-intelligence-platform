@@ -23,6 +23,8 @@ from src.tasks.emr_tasks import (
     EMR_LOG_URI,
     EMR_MASTER_INSTANCE_TYPE,
     EMR_RELEASE,
+    EMR_SECURITY_GROUP_ID,
+    EMR_SERVICE_ACCESS_SECURITY_GROUP_ID,
     EMR_SERVICE_ROLE,
     EMR_SUBNET_ID,
     S3_BUCKET,
@@ -72,6 +74,23 @@ def test_create_emr_cluster() -> None:
     )
 
     assert instances["Ec2SubnetId"] == EMR_SUBNET_ID
+
+    # --------------------------------------------------------
+    # EMR Security Groups
+    # --------------------------------------------------------
+
+    assert instances["EmrManagedMasterSecurityGroup"] == EMR_SECURITY_GROUP_ID
+
+    assert instances["EmrManagedSlaveSecurityGroup"] == EMR_SECURITY_GROUP_ID
+
+    assert (
+        instances["ServiceAccessSecurityGroup"] == EMR_SERVICE_ACCESS_SECURITY_GROUP_ID
+    )
+
+    # --------------------------------------------------------
+    # Cluster settings
+    # --------------------------------------------------------
+
     assert instances["KeepJobFlowAliveWhenNoSteps"] is True
     assert instances["TerminationProtected"] is False
 
