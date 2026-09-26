@@ -7,7 +7,7 @@
 #   1. Checkout the CI-approved commit
 #   2. Connect to AWS using GitHub OIDC
 #   3. Upload production requirements
-#   4. Build and upload crypto_etl_spark.zip
+#   4. Upload application source code
 #   5. Upload Airflow DAGs
 #   6. Verify the S3 deployment
 # =============================================================================
@@ -103,6 +103,7 @@ jobs:
       - name: "Verify AWS authentication"
         run: |
           set -euo pipefail
+
           aws sts get-caller-identity
 
 
@@ -113,6 +114,7 @@ jobs:
       - name: "Verify S3 bucket access"
         run: |
           set -euo pipefail
+
           aws s3 ls "s3://${S3_BUCKET}/"
 
 
@@ -130,69 +132,29 @@ jobs:
 
 
       # -----------------------------------------------------------------------
-      # 6. Build crypto_etl_spark.zip
+      # 6. Upload application source code
       #
-      # Only src/ is packaged.
+      # The complete src/ directory is uploaded to the production S3 bucket.
       #
-      # Production configuration comes from the Airflow Variable:
+      # Production configuration is provided through the Airflow Variable:
       #
       #     crypto_etl_config
       #
-      # Therefore config/ is NOT included separately.
+      # Therefore no separate configuration file is uploaded by CD.
       # -----------------------------------------------------------------------
 
-      - name: "Build EMR Spark package"
+      - name: "Upload application source code"
         run: |
           set -euo pipefail
 
-          rm -rf build/crypto_etl_spark
-          rm -f build/crypto_etl_spark.zip
-
-          mkdir -p build/crypto_etl_spark
-
-          # Copy application source code
-          cp -r src build/crypto_etl_spark/
-
-          # Remove Python cache files
-          find build/crypto_etl_spark \
-            -type d \
-            -name "__pycache__" \
-            -prune \
-            -exec rm -rf {} +
-
-          find build/crypto_etl_spark \
-            -type f \
-            -name "*.pyc" \
-            -delete
-
-          # Create crypto_etl_spark.zip
-          cd build/crypto_etl_spark
-
-          zip -r ../crypto_etl_spark.zip \
-            src
-
-          cd ../..
-
-          echo "crypto_etl_spark.zip created"
-
-          unzip -l build/crypto_etl_spark.zip
+          aws s3 sync \
+            src/ \
+            "s3://${S3_BUCKET}/src/" \
+            --delete
 
 
       # -----------------------------------------------------------------------
-      # 7. Upload crypto_etl_spark.zip
-      # -----------------------------------------------------------------------
-
-      - name: "Upload EMR Spark package"
-        run: |
-          set -euo pipefail
-
-          aws s3 cp \
-            build/crypto_etl_spark.zip \
-            "s3://${S3_BUCKET}/spark/crypto_etl_spark.zip"
-
-
-      # -----------------------------------------------------------------------
-      # 8. Upload Airflow DAGs
+      # 7. Upload Airflow DAGs
       # -----------------------------------------------------------------------
 
       - name: "Upload Airflow DAGs"
@@ -206,22 +168,44 @@ jobs:
 
 
       # -----------------------------------------------------------------------
-      # 9. Verify deployment
+      # 8. Verify requirements.txt
       # -----------------------------------------------------------------------
 
-      - name: "Verify S3 deployment"
+      - name: "Verify requirements deployment"
         run: |
           set -euo pipefail
 
           echo "Checking requirements.txt..."
+
           aws s3 ls \
             "s3://${S3_BUCKET}/requirements.txt"
 
-          echo "Checking crypto_etl_spark.zip..."
-          aws s3 ls \
-            "s3://${S3_BUCKET}/spark/crypto_etl_spark.zip"
 
-          echo "Checking Airflow DAGs..."
+      # -----------------------------------------------------------------------
+      # 9. Verify src/
+      # -----------------------------------------------------------------------
+
+      - name: "Verify source deployment"
+        run: |
+          set -euo pipefail
+
+          echo "Checking src/..."
+
+          aws s3 ls \
+            "s3://${S3_BUCKET}/src/" \
+            --recursive
+
+
+      # -----------------------------------------------------------------------
+      # 10. Verify dags/
+      # -----------------------------------------------------------------------
+
+      - name: "Verify DAG deployment"
+        run: |
+          set -euo pipefail
+
+          echo "Checking dags/..."
+
           aws s3 ls \
             "s3://${S3_BUCKET}/dags/" \
             --recursive
@@ -230,7 +214,7 @@ jobs:
 
 
       # -----------------------------------------------------------------------
-      # 10. Deployment summary
+      # 11. Deployment summary
       # -----------------------------------------------------------------------
 
       - name: "Deployment summary"
@@ -242,7 +226,7 @@ jobs:
           echo "Bucket      : ${S3_BUCKET}"
           echo "Region      : ${AWS_REGION}"
           echo "Requirements: requirements.txt"
-          echo "Spark       : spark/crypto_etl_spark.zip"
+          echo "Source      : src/"
           echo "DAGs        : dags/"
           echo "Commit      : ${{ github.event.workflow_run.head_sha }}"
           echo "=============================================="

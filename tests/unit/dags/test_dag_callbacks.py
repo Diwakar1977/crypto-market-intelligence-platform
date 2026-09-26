@@ -6,7 +6,7 @@ import pendulum
 from airflow.models.taskinstance import TaskInstance
 from airflow.sdk import Context
 
-from dags.callbacks.dag_callbacks import (
+from src.callbacks.dag_callbacks import (
     _get_execution_date,
     _get_task_instance,
     dag_failure_callback,
@@ -112,9 +112,9 @@ def test_get_task_instance_invalid_object() -> None:
 # ============================================================
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_success_callback(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -162,9 +162,9 @@ def test_dag_success_callback(
     )
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_success_callback_without_task_instance(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -197,9 +197,9 @@ def test_dag_success_callback_without_task_instance(
     )
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_success_callback_empty_xcom(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -236,9 +236,9 @@ def test_dag_success_callback_empty_xcom(
     )
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_success_callback_invalid_xcom(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -275,9 +275,9 @@ def test_dag_success_callback_invalid_xcom(
     )
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_success_callback_invalid_record_count(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -317,9 +317,9 @@ def test_dag_success_callback_invalid_record_count(
     )
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_success_callback_notification_disabled(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -330,7 +330,7 @@ def test_dag_success_callback_notification_disabled(
     mock_get_task_instance.return_value = None
 
     with patch(
-        "dags.callbacks.dag_callbacks.NOTIFICATION_ON_SUCCESS",
+        "src.callbacks.dag_callbacks.NOTIFICATION_ON_SUCCESS",
         False,
     ):
         context: Context = {}
@@ -341,9 +341,9 @@ def test_dag_success_callback_notification_disabled(
     mock_sns.assert_not_called()
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_success_callback_sns_failure(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -377,9 +377,9 @@ def test_dag_success_callback_sns_failure(
 # ============================================================
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_failure_callback(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -415,9 +415,9 @@ def test_dag_failure_callback(
     )
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_failure_callback_without_exception(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,
@@ -450,8 +450,8 @@ def test_dag_failure_callback_without_exception(
     )
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
 def test_dag_failure_callback_notification_disabled(
     mock_email_template: MagicMock,
     mock_sns: MagicMock,
@@ -459,7 +459,7 @@ def test_dag_failure_callback_notification_disabled(
     """Do nothing when failure notification is disabled."""
 
     with patch(
-        "dags.callbacks.dag_callbacks.NOTIFICATION_ON_FAILURE",
+        "src.callbacks.dag_callbacks.NOTIFICATION_ON_FAILURE",
         False,
     ):
         context: Context = {}
@@ -470,9 +470,9 @@ def test_dag_failure_callback_notification_disabled(
     mock_sns.assert_not_called()
 
 
-@patch("dags.callbacks.dag_callbacks.SNSNotification")
-@patch("dags.callbacks.dag_callbacks.EmailTemplate")
-@patch("dags.callbacks.dag_callbacks._get_task_instance")
+@patch("src.callbacks.dag_callbacks.SNSNotification")
+@patch("src.callbacks.dag_callbacks.EmailTemplate")
+@patch("src.callbacks.dag_callbacks._get_task_instance")
 def test_dag_failure_callback_sns_failure(
     mock_get_task_instance: MagicMock,
     mock_email_template: MagicMock,

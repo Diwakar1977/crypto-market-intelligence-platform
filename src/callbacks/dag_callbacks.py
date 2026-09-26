@@ -1,5 +1,3 @@
-import logging
-
 from airflow.models.taskinstance import TaskInstance
 from airflow.sdk import Context
 from dag_config import (
@@ -7,10 +5,15 @@ from dag_config import (
     NOTIFICATION_ON_FAILURE,
     NOTIFICATION_ON_SUCCESS,
 )
-from notifications.email_template import EmailTemplate
-from notifications.sns_notification import SNSNotification
 
-logger = logging.getLogger(__name__)
+from src.notifications.email_template import EmailTemplate
+from src.notifications.sns_notification import SNSNotification
+from src.utils.logger import Logger
+
+logger = Logger.get_logger(
+    "dag_callbacks",
+    "dag_callbacks.log",
+)
 
 
 def _get_execution_date(context: Context) -> str:

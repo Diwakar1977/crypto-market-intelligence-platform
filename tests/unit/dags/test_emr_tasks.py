@@ -14,7 +14,7 @@ from airflow.providers.amazon.aws.sensors.emr import (
 )
 from airflow.sdk import TriggerRule
 
-from dags.tasks.emr_tasks import (
+from src.tasks.emr_tasks import (
     AWS_REGION,
     EMR_CLUSTER_NAME,
     EMR_CORE_INSTANCE_COUNT,

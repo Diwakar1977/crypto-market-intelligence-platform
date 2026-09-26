@@ -15,7 +15,6 @@ dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-
 .coverage
 coverage.xml
 htmlcov/
@@ -37,3 +36,6 @@ awscliv2.zip
 
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints/
+
+# VS Code Local Settings
+.vscode/

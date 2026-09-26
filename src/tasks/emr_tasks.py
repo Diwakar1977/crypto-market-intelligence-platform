@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from airflow.providers.amazon.aws.operators.emr import (
@@ -12,26 +11,13 @@ from airflow.providers.amazon.aws.sensors.emr import (
     EmrJobFlowSensor,
     EmrStepSensor,
 )
-from airflow.sdk import TriggerRule, Variable
+from airflow.sdk import TriggerRule
 
+from src.config.config import CONFIG
 
-def _load_config() -> dict[str, Any]:
-    """Load configuration based on the current environment."""
-
-    environment = os.getenv("ENV", "").strip().lower()
-
-    if environment in {"local", "ci"}:
-        from src.config.config import CONFIG
-
-        return CONFIG
-
-    return Variable.get(
-        "crypto_etl_config",
-        deserialize_json=True,
-    )
-
-
-CONFIG = _load_config()
+# ------------------------------------
+# CONFIGURATION
+# ------------------------------------
 
 AWS_CONFIG = CONFIG["aws"]
 EMR_CONFIG = CONFIG["emr"]
@@ -58,7 +44,7 @@ S3_BUCKET = str(S3_CONFIG["bucket"])
 S3_RAW_PREFIX = str(S3_CONFIG["raw_prefix"])
 S3_PROCESSED_PREFIX = str(S3_CONFIG["processed_prefix"])
 
-EMR_SPARK_ZIP = f"s3://{S3_BUCKET}/spark/crypto_etl_spark.zip"
+EMR_SPARK_ZIP = f"s3://{S3_BUCKET}/src/transform/tranform"
 
 # ------------------------------------
 # CREATE EMR CLUSTER

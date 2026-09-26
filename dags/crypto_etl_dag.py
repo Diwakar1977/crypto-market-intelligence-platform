@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from airflow.providers.standard.operators.python import PythonOperator
-from airflow.sdk import DAG, Variable
-from callbacks.dag_callbacks import (
-    dag_failure_callback,
-    dag_success_callback,
-)
+from airflow.sdk import DAG
 from dag_config import (
     DAG_CATCHUP,
     DAG_DEFAULT_ARGS,
@@ -21,35 +16,15 @@ from dag_config import (
     DAG_TAGS,
 )
 
+from src.callbacks.dag_callbacks import (
+    dag_failure_callback,
+    dag_success_callback,
+)
+
 # ============================================================
 # CONFIGURATION
 # ============================================================
-
-
-def _load_config() -> dict[str, Any]:
-    """Load configuration based on the current environment."""
-
-    environment = (
-        os.getenv(
-            "ENV",
-            "",
-        )
-        .strip()
-        .lower()
-    )
-
-    if environment in {"local", "ci"}:
-        from src.config.config import CONFIG
-
-        return CONFIG
-
-    return Variable.get(
-        "crypto_etl_config",
-        deserialize_json=True,
-    )
-
-
-CONFIG = _load_config()
+from src.config.config import CONFIG
 
 S3_CONFIG = CONFIG["s3"]
 RUNTIME_CONFIG = CONFIG["runtime"]
@@ -101,7 +76,6 @@ def execute_local_transform(**context: Any) -> str:
     Raw data is read from S3 and processed.
     Parquet data is written to S3.
     """
-
     from spark.spark_session import SparkSessionFactory
     from src.transform.transform_job import run_transform_job
 
@@ -147,7 +121,6 @@ def execute_load() -> Any:
     All Redshift implementation details are handled
     internally by run_load_job().
     """
-
     from src.load.load_job import run_load_job
 
     return run_load_job()
@@ -216,7 +189,7 @@ with DAG(
         # PRODUCTION - EMR
         # ----------------------------------------------------
 
-        from tasks.emr_tasks import (
+        from src.tasks.emr_tasks import (
             add_transform_step,
             create_emr_cluster,
             terminate_emr_cluster,

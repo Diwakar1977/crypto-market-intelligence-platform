@@ -4,13 +4,13 @@ from datetime import datetime, timezone
 
 from pyspark.sql import SparkSession
 
-from config.config import CONFIG
-from dags.notifications.email_template import EmailTemplate
-from dags.notifications.sns_notification import SNSNotification
 from spark.spark_session import SparkSessionFactory
+from src.config.config import CONFIG
 from src.extract.extract_job import ExtractResult, create_extract_job
 from src.load.load_job import LoadResult, create_load_job
 from src.load.redshift_storage import RedshiftStorage
+from src.notifications.email_template import EmailTemplate
+from src.notifications.sns_notification import SNSNotification
 from src.transform.transform_job import create_transform_job
 from src.utils.logger import Logger
 
