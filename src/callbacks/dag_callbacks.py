@@ -1,7 +1,7 @@
 from airflow.models.taskinstance import TaskInstance
 from airflow.sdk import Context
 
-from dags.dag_config import (
+from src.config.dag_config import (
     DAG_ID,
     NOTIFICATION_ON_FAILURE,
     NOTIFICATION_ON_SUCCESS,

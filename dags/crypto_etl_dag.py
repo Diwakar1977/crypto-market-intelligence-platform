@@ -4,17 +4,6 @@ from typing import Any
 
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.sdk import DAG
-from dag_config import (
-    DAG_CATCHUP,
-    DAG_DEFAULT_ARGS,
-    DAG_DESCRIPTION,
-    DAG_ID,
-    DAG_MAX_ACTIVE_RUNS,
-    DAG_MAX_ACTIVE_TASKS,
-    DAG_SCHEDULE,
-    DAG_START_DATE,
-    DAG_TAGS,
-)
 
 from src.callbacks.dag_callbacks import (
     dag_failure_callback,
@@ -25,6 +14,17 @@ from src.callbacks.dag_callbacks import (
 # CONFIGURATION
 # ============================================================
 from src.config.config import CONFIG
+from src.config.dag_config import (
+    DAG_CATCHUP,
+    DAG_DEFAULT_ARGS,
+    DAG_DESCRIPTION,
+    DAG_ID,
+    DAG_MAX_ACTIVE_RUNS,
+    DAG_MAX_ACTIVE_TASKS,
+    DAG_SCHEDULE,
+    DAG_START_DATE,
+    DAG_TAGS,
+)
 
 S3_CONFIG = CONFIG["s3"]
 RUNTIME_CONFIG = CONFIG["runtime"]
