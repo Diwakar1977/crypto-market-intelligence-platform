@@ -1,11 +1,11 @@
 from airflow.models.taskinstance import TaskInstance
 from airflow.sdk import Context
-from dag_config import (
+
+from dags.dag_config import (
     DAG_ID,
     NOTIFICATION_ON_FAILURE,
     NOTIFICATION_ON_SUCCESS,
 )
-
 from src.notifications.email_template import EmailTemplate
 from src.notifications.sns_notification import SNSNotification
 from src.utils.logger import Logger

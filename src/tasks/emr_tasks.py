@@ -44,7 +44,6 @@ S3_BUCKET = str(S3_CONFIG["bucket"])
 S3_RAW_PREFIX = str(S3_CONFIG["raw_prefix"])
 S3_PROCESSED_PREFIX = str(S3_CONFIG["processed_prefix"])
 
-EMR_SPARK_ZIP = f"s3://{S3_BUCKET}/src/transform/tranform"
 
 # ------------------------------------
 # CREATE EMR CLUSTER
@@ -143,15 +142,9 @@ def add_transform_step() -> EmrAddStepsOperator:
                 "-c",
                 (
                     "set -euo pipefail; "
-                    "rm -rf /tmp/crypto_etl_spark; "
-                    "mkdir -p /tmp/crypto_etl_spark; "
-                    f"aws s3 cp {EMR_SPARK_ZIP} "
-                    "/tmp/crypto_etl_spark.zip; "
-                    "unzip -q /tmp/crypto_etl_spark.zip "
-                    "-d /tmp/crypto_etl_spark; "
                     "spark-submit "
                     "--deploy-mode cluster "
-                    "/tmp/crypto_etl_spark/src/transform/transform_job.py "
+                    f"s3://{S3_BUCKET}/src/transform/transform_job.py "
                     f"--input s3://{S3_BUCKET}/{S3_RAW_PREFIX} "
                     f"--output s3://{S3_BUCKET}/{S3_PROCESSED_PREFIX}"
                 ),
