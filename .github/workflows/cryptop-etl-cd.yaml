@@ -7,8 +7,8 @@
 #   1. Checkout the CI-approved commit
 #   2. Connect to AWS using GitHub OIDC
 #   3. Upload production requirements
-#   4. Upload application source code
-#   5. Upload Airflow DAGs
+#   4. Upload Airflow DAGs
+#   5. Upload src/ inside dags/ for DAG runtime imports
 #   6. Verify the S3 deployment
 # =============================================================================
 
@@ -132,29 +132,17 @@ jobs:
 
 
       # -----------------------------------------------------------------------
-      # 6. Upload application source code
+      # 6. Upload Airflow DAGs
       #
-      # The complete src/ directory is uploaded to the production S3 bucket.
+      # Local:
       #
-      # Production configuration is provided through the Airflow Variable:
+      # dags/
+      # ├── crypto_etl_dag.py
+      # └── ...
       #
-      #     crypto_etl_config
+      # Uploaded to:
       #
-      # Therefore no separate configuration file is uploaded by CD.
-      # -----------------------------------------------------------------------
-
-      - name: "Upload application source code"
-        run: |
-          set -euo pipefail
-
-          aws s3 sync \
-            src/ \
-            "s3://${S3_BUCKET}/src/" \
-            --delete
-
-
-      # -----------------------------------------------------------------------
-      # 7. Upload Airflow DAGs
+      # s3://<bucket>/dags/
       # -----------------------------------------------------------------------
 
       - name: "Upload Airflow DAGs"
@@ -164,6 +152,30 @@ jobs:
           aws s3 sync \
             dags/ \
             "s3://${S3_BUCKET}/dags/" \
+            --delete
+
+
+      # -----------------------------------------------------------------------
+      # 7. Upload src/ inside dags/
+      #
+      # The DAG imports:
+      #
+      #     from src.callbacks.dag_callbacks import ...
+      #
+      # Therefore src/ is also deployed under:
+      #
+      #     s3://<bucket>/dags/src/
+      #
+      # This makes the src package available from the Airflow DAG runtime path.
+      # -----------------------------------------------------------------------
+
+      - name: "Upload DAG runtime source package"
+        run: |
+          set -euo pipefail
+
+          aws s3 sync \
+            src/ \
+            "s3://${S3_BUCKET}/dags/src/" \
             --delete
 
 
@@ -182,22 +194,7 @@ jobs:
 
 
       # -----------------------------------------------------------------------
-      # 9. Verify src/
-      # -----------------------------------------------------------------------
-
-      - name: "Verify source deployment"
-        run: |
-          set -euo pipefail
-
-          echo "Checking src/..."
-
-          aws s3 ls \
-            "s3://${S3_BUCKET}/src/" \
-            --recursive
-
-
-      # -----------------------------------------------------------------------
-      # 10. Verify dags/
+      # 9. Verify DAG deployment
       # -----------------------------------------------------------------------
 
       - name: "Verify DAG deployment"
@@ -210,23 +207,28 @@ jobs:
             "s3://${S3_BUCKET}/dags/" \
             --recursive
 
+          echo "Checking dags/src/..."
+
+          aws s3 ls \
+            "s3://${S3_BUCKET}/dags/src/" \
+            --recursive
+
           echo "S3 deployment verification completed"
 
 
       # -----------------------------------------------------------------------
-      # 11. Deployment summary
+      # 10. Deployment summary
       # -----------------------------------------------------------------------
 
       - name: "Deployment summary"
-
         run: |
           echo "=============================================="
           echo "PRODUCTION DEPLOYMENT SUCCESS"
           echo "=============================================="
-          echo "Bucket      : ${S3_BUCKET}"
-          echo "Region      : ${AWS_REGION}"
-          echo "Requirements: requirements.txt"
-          echo "Source      : src/"
-          echo "DAGs        : dags/"
-          echo "Commit      : ${{ github.event.workflow_run.head_sha }}"
+          echo "Bucket          : ${S3_BUCKET}"
+          echo "Region          : ${AWS_REGION}"
+          echo "Requirements    : requirements.txt"
+          echo "Airflow DAGs    : dags/"
+          echo "DAG src package : dags/src/"
+          echo "Commit          : ${{ github.event.workflow_run.head_sha }}"
           echo "=============================================="
