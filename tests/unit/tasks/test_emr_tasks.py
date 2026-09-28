@@ -28,7 +28,6 @@ from src.tasks.emr_tasks import (
     EMR_SERVICE_ROLE,
     EMR_SUBNET_ID,
     S3_BUCKET,
-    S3_PROCESSED_PREFIX,
     S3_RAW_PREFIX,
     add_transform_step,
     create_emr_cluster,
@@ -192,11 +191,16 @@ def test_add_transform_step() -> None:
         "-c",
         (
             "set -euo pipefail; "
+            "rm -f /tmp/src.zip; "
+            "cd /tmp; "
+            f"aws s3 cp s3://{S3_BUCKET}/dags/src/ /tmp/src/ --recursive; "
+            "cd /tmp; "
+            "zip -r /tmp/src.zip src; "
             "spark-submit "
             "--deploy-mode cluster "
+            "--py-files /tmp/src.zip "
             f"s3://{S3_BUCKET}/dags/src/transform/transform_job.py "
-            f"--input s3://{S3_BUCKET}/{S3_RAW_PREFIX} "
-            f"--output s3://{S3_BUCKET}/{S3_PROCESSED_PREFIX}"
+            f"s3a://{S3_BUCKET}/{S3_RAW_PREFIX} "
         ),
     ]
 

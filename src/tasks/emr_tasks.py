@@ -47,7 +47,6 @@ EMR_LOG_URI = str(EMR_CONFIG["log_uri"])
 
 S3_BUCKET = str(S3_CONFIG["bucket"])
 S3_RAW_PREFIX = str(S3_CONFIG["raw_prefix"])
-S3_PROCESSED_PREFIX = str(S3_CONFIG["processed_prefix"])
 
 
 # ------------------------------------
@@ -151,11 +150,18 @@ def add_transform_step() -> EmrAddStepsOperator:
                 "-c",
                 (
                     "set -euo pipefail; "
+                    # Create a ZIP containing the src package.
+                    "rm -f /tmp/src.zip; "
+                    "cd /tmp; "
+                    f"aws s3 cp s3://{S3_BUCKET}/dags/src/ /tmp/src/ --recursive; "
+                    "cd /tmp; "
+                    "zip -r /tmp/src.zip src; "
+                    # Submit Spark job with the Python package.
                     "spark-submit "
                     "--deploy-mode cluster "
+                    "--py-files /tmp/src.zip "
                     f"s3://{S3_BUCKET}/dags/src/transform/transform_job.py "
-                    f"--input s3://{S3_BUCKET}/{S3_RAW_PREFIX} "
-                    f"--output s3://{S3_BUCKET}/{S3_PROCESSED_PREFIX}"
+                    f"s3a://{S3_BUCKET}/{S3_RAW_PREFIX} "
                 ),
             ],
         },
