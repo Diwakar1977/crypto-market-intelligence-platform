@@ -194,7 +194,7 @@ def test_add_transform_step() -> None:
             "set -euo pipefail; "
             "spark-submit "
             "--deploy-mode cluster "
-            f"s3://{S3_BUCKET}/src/transform/transform_job.py "
+            f"s3://{S3_BUCKET}/dags/src/transform/transform_job.py "
             f"--input s3://{S3_BUCKET}/{S3_RAW_PREFIX} "
             f"--output s3://{S3_BUCKET}/{S3_PROCESSED_PREFIX}"
         ),
