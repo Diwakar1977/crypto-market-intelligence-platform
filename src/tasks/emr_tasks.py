@@ -152,7 +152,7 @@ def add_transform_step() -> EmrAddStepsOperator:
                     "set -euo pipefail; "
                     # Download Python dependencies from S3.
                     f"aws s3 cp "
-                    f"s3://{S3_BUCKET}/dags/requirements.txt "
+                    f"s3://{S3_BUCKET}/requirements.txt "
                     "/tmp/requirements.txt; "
                     # Install Python dependencies required by the Spark application.
                     "pip install -r /tmp/requirements.txt; "
