@@ -49,7 +49,7 @@ def test_execute_extract(
     "dags.crypto_etl_dag.S3_CONFIG",
     {"bucket": "crypto-bucket"},
 )
-@patch("spark.spark_session.SparkSessionFactory.create")
+@patch("src.spark.spark_session.SparkSessionFactory.create")
 @patch("src.transform.transform_job.run_transform_job")
 def test_execute_local_transform(
     mock_run_transform_job: MagicMock,
@@ -148,7 +148,7 @@ def test_execute_local_transform_empty_s3_key() -> None:
     "dags.crypto_etl_dag.S3_CONFIG",
     {"bucket": "crypto-bucket"},
 )
-@patch("spark.spark_session.SparkSessionFactory.create")
+@patch("src.spark.spark_session.SparkSessionFactory.create")
 @patch("src.transform.transform_job.run_transform_job")
 def test_execute_local_transform_stops_spark_on_failure(
     mock_run_transform_job: MagicMock,

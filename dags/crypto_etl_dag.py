@@ -76,7 +76,7 @@ def execute_local_transform(**context: Any) -> str:
     Raw data is read from S3 and processed.
     Parquet data is written to S3.
     """
-    from spark.spark_session import SparkSessionFactory
+    from src.spark.spark_session import SparkSessionFactory
     from src.transform.transform_job import run_transform_job
 
     task_instance = context["ti"]

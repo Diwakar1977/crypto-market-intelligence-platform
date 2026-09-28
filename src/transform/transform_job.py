@@ -6,10 +6,10 @@ import sys
 import boto3
 from pyspark.sql import DataFrame, SparkSession
 
-from spark.spark_session import SparkSessionFactory
 from src.config.config import CONFIG
 from src.schema.schema_inferer import SchemaInferer
 from src.schema.schema_manager import SchemaManager
+from src.spark.spark_session import SparkSessionFactory
 from src.storage.parquet_writer import ParquetWriter
 from src.storage.path_builder import PathBuilder
 from src.transform.data_normalizer import DataNormalizer
