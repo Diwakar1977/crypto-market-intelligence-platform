@@ -60,6 +60,7 @@ def create_emr_cluster() -> EmrCreateJobFlowOperator:
 
     job_flow_overrides: dict[str, Any] = {
         "Name": EMR_CLUSTER_NAME,
+        "Tags": [{"Key": "for-use-with-amazon-emr-managed-policies", "Value": "true"}],
         "ReleaseLabel": EMR_RELEASE,
         "Applications": [
             {
