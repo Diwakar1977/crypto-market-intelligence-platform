@@ -191,11 +191,21 @@ def test_add_transform_step() -> None:
         "-c",
         (
             "set -euo pipefail; "
+            # Download Python dependencies from S3.
+            f"aws s3 cp "
+            f"s3://{S3_BUCKET}/dags/requirements.txt "
+            "/tmp/requirements.txt; "
+            # Install Python dependencies.
+            "pip install -r /tmp/requirements.txt; "
+            # Remove previous temporary ZIP.
             "rm -f /tmp/src.zip; "
             "cd /tmp; "
+            # Download source package from S3.
             f"aws s3 cp s3://{S3_BUCKET}/dags/src/ /tmp/src/ --recursive; "
+            # Create source ZIP.
             "cd /tmp; "
             "zip -r /tmp/src.zip src; "
+            # Submit Spark transformation job.
             "spark-submit "
             "--deploy-mode cluster "
             "--py-files /tmp/src.zip "
