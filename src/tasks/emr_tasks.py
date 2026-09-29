@@ -173,6 +173,7 @@ def add_transform_step() -> EmrAddStepsOperator:
                     # Submit Spark job with the Python package.
                     "spark-submit "
                     "--deploy-mode cluster "
+                    "--conf spark.yarn.appMasterEnv.ENV=emr "
                     "--py-files /tmp/src.zip,/tmp/dependencies.zip "
                     f"s3://{S3_BUCKET}/dags/src/transform/transform_job.py "
                     f"s3a://{S3_BUCKET}/{S3_RAW_PREFIX} "
