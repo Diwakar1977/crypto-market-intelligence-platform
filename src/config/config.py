@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +56,23 @@ def _load_airflow_config() -> dict[str, Any]:
     return config
 
 
+def _load_emr_config() -> dict[str, Any]:
+    """Load EMR configuration packaged inside src.zip."""
+
+    config_file = files("src.config").joinpath("emr.yaml")
+
+    with config_file.open(
+        "r",
+        encoding="utf-8",
+    ) as file:
+        config = yaml.safe_load(file)
+
+    if not isinstance(config, dict):
+        raise TypeError("Invalid EMR configuration format.")
+
+    return config
+
+
 def load_config() -> dict[str, Any]:
     """Load configuration based on the ENV variable."""
 
@@ -78,9 +96,7 @@ def load_config() -> dict[str, Any]:
         return _load_yaml_file(config_path)
 
     if environment == "emr":
-        config_path = Path(__file__).resolve().parent / "emr.yaml"
-
-        return _load_yaml_file(config_path)
+        return _load_emr_config()
 
     if environment == "":
         return _load_airflow_config()
