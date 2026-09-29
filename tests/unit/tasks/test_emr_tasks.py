@@ -197,6 +197,8 @@ def test_add_transform_step() -> None:
             "/tmp/requirements.txt; "
             # Install Python dependencies.
             "/usr/bin/python3.11 -m pip install -r /tmp/requirements.txt; "
+            # Verify PyYAML is available to the exact Python used by Spark.
+            '/usr/bin/python3.11 -c "import yaml; print(yaml.__version__)"; '
             # Remove previous temporary ZIP.
             "rm -f /tmp/src.zip; "
             "cd /tmp; "

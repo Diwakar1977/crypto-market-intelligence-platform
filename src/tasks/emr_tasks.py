@@ -154,8 +154,10 @@ def add_transform_step() -> EmrAddStepsOperator:
                     f"aws s3 cp "
                     f"s3://{S3_BUCKET}/requirements.txt "
                     "/tmp/requirements.txt; "
-                    # Install Python dependencies required by the Spark application.
+                    # Install Python dependencies.
                     "/usr/bin/python3.11 -m pip install -r /tmp/requirements.txt; "
+                    # Verify PyYAML is available to the exact Python used by Spark.
+                    '/usr/bin/python3.11 -c "import yaml; print(yaml.__version__)"; '
                     # Create a ZIP containing the src package.
                     "rm -f /tmp/src.zip; "
                     "cd /tmp; "
