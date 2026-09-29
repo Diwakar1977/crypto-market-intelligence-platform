@@ -23,6 +23,10 @@ spark:
   executor_memory: 4g
   shuffle_partitions: 200
 
+# HADOOP
+hadoop:
+  aws_package: "org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262"
+
 # RUNTIME
 runtime:
   compute_mode: emr
