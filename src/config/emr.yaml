@@ -1,0 +1,32 @@
+# APPLICATION
+application:
+  name: crypto_market_intelligence
+  pipeline_name: crypto_market_etl
+  source_system: coingecko
+  target_table: crypto_market
+  raw_dataset: crypto_market
+
+# AWS
+aws:
+  region: ap-south-1
+
+# S3
+s3:
+  bucket: crypto-etl-prod-data-ap-south-1
+  raw_prefix: raw_data
+  processed_prefix: processed_data
+
+# SPARK
+spark:
+  master: "yarn"
+  driver_memory: 4g
+  executor_memory: 4g
+  shuffle_partitions: 200
+
+# RUNTIME
+runtime:
+  compute_mode: emr
+  timezone: Asia/Kolkata
+  dry_run: false
+  log_level: INFO
+  log_dir: logs

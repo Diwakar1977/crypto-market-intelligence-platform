@@ -3,14 +3,14 @@ application:
   name: crypto_market_intelligence
   pipeline_name: crypto_market_etl
   source_system: coingecko
-  target_table: crypto_market 
+  target_table: crypto_market
   raw_dataset: crypto_market
 
 # AWS
-aws: 
+aws:
   region: ap-south-1
 
-# COINGECKO 
+# COINGECKO
 coingecko:
   base_url: "https://api.coingecko.com/api/v3/coins/markets"
   vs_currency: usd
@@ -22,7 +22,6 @@ s3:
   raw_prefix: raw_data
   processed_prefix: processed_data
 
-  
 # SPARK
 spark:
   master: "local[*]"
@@ -50,27 +49,23 @@ redshift:
 
 # EMR
 emr:
-  release: ""
-  service_role: ""
-  ec2_role: ""
-  instance_profile: ""
-
-  subnet_id: ""
-
-  security_group_id: ""
-  service_access_security_group_id: ""
-
-  master_instance_type: ""
-  core_instance_type: ""
+  cluster_name: crypto-etl-cluster
+  release: emr-7.13.0
+  service_role: CryptoETL-EMR-Service-Role
+  ec2_role: CryptoETL-EMR-EC2-Role
+  instance_profile: CryptoETL-EMR-EC2-InstanceProfile
+  subnet_id: subnet-0005874f9267d223d
+  security_group_id: sg-00caa5ea769d640cb
+  service_access_security_group_id: sg-08057e1aa934b388c
+  master_instance_type: m5.xlarge
+  core_instance_type: m5.xlarge
   core_instance_count: 1
-
-  cluster_name: ""
-  log_uri: ""
+  log_uri: "s3://crypto-etl-prod-data-ap-south-1/emr-logs/"
 
 # RUNTIME
 runtime:
-  compute_mode: local
+  compute_mode: emr
   timezone: UTC
-  dry_run: true
+  dry_run: false
   log_level: INFO
   log_dir: logs

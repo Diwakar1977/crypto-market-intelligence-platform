@@ -77,11 +77,16 @@ def load_config() -> dict[str, Any]:
 
         return _load_yaml_file(config_path)
 
+    if environment == "emr":
+        config_path = Path(__file__).resolve().parent / "emr.yaml"
+
+        return _load_yaml_file(config_path)
+
     if environment == "":
         return _load_airflow_config()
 
     raise ValueError(
-        "Unsupported ENV. Expected 'local' or 'ci', "
+        "Unsupported ENV. Expected 'local', 'ci', or 'emr', "
         "or leave ENV unset for MWAA. "
         f"Got: {environment}"
     )

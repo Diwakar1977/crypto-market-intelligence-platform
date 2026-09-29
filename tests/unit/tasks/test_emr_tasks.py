@@ -194,6 +194,8 @@ def test_add_transform_step() -> None:
             # Download Python dependencies from S3.
             f"aws s3 cp "
             f"s3://{S3_BUCKET}/requirements.txt /tmp/requirements.txt; "
+            # Set EMR runtime environment
+            "export ENV=emr; "
             # Install Python dependencies into a dedicated directory.
             "rm -rf /tmp/python_deps; "
             "mkdir -p /tmp/python_deps; "
