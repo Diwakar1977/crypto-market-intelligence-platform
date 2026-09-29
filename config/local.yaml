@@ -11,9 +11,10 @@ aws:
   region: ap-south-1
 
 # COINGECKO 
-coingecko: 
+coingecko:
   base_url: "https://api.coingecko.com/api/v3/coins/markets"
   vs_currency: usd
+  api_key: "CG-CXwi9FsBCiKduECBiUNzgmrF"
 
 # S3
 s3:

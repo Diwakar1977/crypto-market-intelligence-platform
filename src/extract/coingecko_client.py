@@ -22,8 +22,11 @@ class CoinGeckoClient:
         base_url = str(coingecko_config["base_url"])
         vs_currency = str(coingecko_config["vs_currency"])
 
+        api_key = str(coingecko_config["api_key"])
+
         params = {
             "vs_currency": vs_currency,
+            "x_cg_demo_api_key": api_key,
         }
 
         logger.info("Calling CoinGecko market API.")

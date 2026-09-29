@@ -31,13 +31,25 @@ def test_fetch_market_data_success(
 
     mock_get.return_value = mock_response
 
-    client = CoinGeckoClient()
-
-    result = client.fetch_market_data()
+    with patch(
+        "src.extract.coingecko_client.CONFIG",
+        {
+            "coingecko": {
+                "base_url": ("https://api.coingecko.com/api/v3/coins/markets"),
+                "vs_currency": "usd",
+                "api_key": "test-api-key",
+            },
+        },
+    ):
+        client = CoinGeckoClient()
+        result = client.fetch_market_data()
 
     mock_get.assert_called_once_with(
         "https://api.coingecko.com/api/v3/coins/markets",
-        params={"vs_currency": "usd"},
+        params={
+            "vs_currency": "usd",
+            "x_cg_demo_api_key": "test-api-key",
+        },
         timeout=30,
     )
 
@@ -57,13 +69,23 @@ def test_fetch_market_data_request_error(
 
     mock_get.side_effect = requests.RequestException("Connection error")
 
-    client = CoinGeckoClient()
-
-    with pytest.raises(
-        requests.RequestException,
-        match="Connection error",
+    with patch(
+        "src.extract.coingecko_client.CONFIG",
+        {
+            "coingecko": {
+                "base_url": ("https://api.coingecko.com/api/v3/coins/markets"),
+                "vs_currency": "usd",
+                "api_key": "test-api-key",
+            },
+        },
     ):
-        client.fetch_market_data()
+        client = CoinGeckoClient()
+
+        with pytest.raises(
+            requests.RequestException,
+            match="Connection error",
+        ):
+            client.fetch_market_data()
 
 
 @patch("src.extract.coingecko_client.requests.get")
@@ -73,16 +95,30 @@ def test_fetch_market_data_invalid_response(
     """Test invalid CoinGecko API response format."""
 
     mock_response = MagicMock()
-    mock_response.json.return_value = {"error": "Invalid response"}
+
+    mock_response.json.return_value = {
+        "error": "Invalid response",
+    }
+
     mock_get.return_value = mock_response
 
-    client = CoinGeckoClient()
-
-    with pytest.raises(
-        TypeError,
-        match="Unexpected CoinGecko API response format",
+    with patch(
+        "src.extract.coingecko_client.CONFIG",
+        {
+            "coingecko": {
+                "base_url": ("https://api.coingecko.com/api/v3/coins/markets"),
+                "vs_currency": "usd",
+                "api_key": "test-api-key",
+            },
+        },
     ):
-        client.fetch_market_data()
+        client = CoinGeckoClient()
+
+        with pytest.raises(
+            TypeError,
+            match="Unexpected CoinGecko API response format",
+        ):
+            client.fetch_market_data()
 
 
 @patch("src.extract.coingecko_client.requests.get")
@@ -92,13 +128,25 @@ def test_fetch_market_data_empty_response(
     """Test empty CoinGecko API response."""
 
     mock_response = MagicMock()
+
     mock_response.json.return_value = []
+
     mock_get.return_value = mock_response
 
-    client = CoinGeckoClient()
-
-    with pytest.raises(
-        ValueError,
-        match="CoinGecko API returned empty response",
+    with patch(
+        "src.extract.coingecko_client.CONFIG",
+        {
+            "coingecko": {
+                "base_url": ("https://api.coingecko.com/api/v3/coins/markets"),
+                "vs_currency": "usd",
+                "api_key": "test-api-key",
+            },
+        },
     ):
-        client.fetch_market_data()
+        client = CoinGeckoClient()
+
+        with pytest.raises(
+            ValueError,
+            match="CoinGecko API returned empty response",
+        ):
+            client.fetch_market_data()
