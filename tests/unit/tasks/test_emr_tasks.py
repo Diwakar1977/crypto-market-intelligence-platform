@@ -196,7 +196,7 @@ def test_add_transform_step() -> None:
             f"s3://{S3_BUCKET}/requirements.txt "
             "/tmp/requirements.txt; "
             # Install Python dependencies.
-            "pip install -r /tmp/requirements.txt; "
+            "/usr/bin/python3.11 -m pip install -r /tmp/requirements.txt; "
             # Remove previous temporary ZIP.
             "rm -f /tmp/src.zip; "
             "cd /tmp; "

@@ -155,7 +155,7 @@ def add_transform_step() -> EmrAddStepsOperator:
                     f"s3://{S3_BUCKET}/requirements.txt "
                     "/tmp/requirements.txt; "
                     # Install Python dependencies required by the Spark application.
-                    "pip install -r /tmp/requirements.txt; "
+                    "/usr/bin/python3.11 -m pip install -r /tmp/requirements.txt; "
                     # Create a ZIP containing the src package.
                     "rm -f /tmp/src.zip; "
                     "cd /tmp; "
