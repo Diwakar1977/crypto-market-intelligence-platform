@@ -193,24 +193,31 @@ def test_add_transform_step() -> None:
             "set -euo pipefail; "
             # Download Python dependencies from S3.
             f"aws s3 cp "
-            f"s3://{S3_BUCKET}/requirements.txt "
-            "/tmp/requirements.txt; "
-            # Install Python dependencies.
-            "/usr/bin/python3.11 -m pip install -r /tmp/requirements.txt; "
-            # Verify PyYAML is available to the exact Python used by Spark.
-            '/usr/bin/python3.11 -c "import yaml; print(yaml.__version__)"; '
-            # Remove previous temporary ZIP.
+            f"s3://{S3_BUCKET}/requirements.txt /tmp/requirements.txt; "
+            # Install Python dependencies into a dedicated directory.
+            "rm -rf /tmp/python_deps; "
+            "mkdir -p /tmp/python_deps; "
+            "/usr/bin/python3.11 -m pip install "
+            "--target /tmp/python_deps "
+            "-r /tmp/requirements.txt; "
+            # Remove previous source ZIP.
             "rm -f /tmp/src.zip; "
             "cd /tmp; "
             # Download source package from S3.
-            f"aws s3 cp s3://{S3_BUCKET}/dags/src/ /tmp/src/ --recursive; "
-            # Create source ZIP.
+            f"aws s3 cp "
+            f"s3://{S3_BUCKET}/dags/src/ /tmp/src/ --recursive; "
+            # Move to /tmp before creating source ZIP.
             "cd /tmp; "
+            # Create source ZIP.
             "zip -r /tmp/src.zip src; "
+            # Create dependencies ZIP.
+            "rm -f /tmp/dependencies.zip; "
+            "cd /tmp/python_deps; "
+            "zip -r /tmp/dependencies.zip .; "
             # Submit Spark transformation job.
             "spark-submit "
             "--deploy-mode cluster "
-            "--py-files /tmp/src.zip "
+            "--py-files /tmp/src.zip,/tmp/dependencies.zip "
             f"s3://{S3_BUCKET}/dags/src/transform/transform_job.py "
             f"s3a://{S3_BUCKET}/{S3_RAW_PREFIX} "
         ),
