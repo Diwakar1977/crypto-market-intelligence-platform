@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 from types import TracebackType
 from typing import Any, Self
 
@@ -147,6 +148,22 @@ class RedshiftStorage:
                 self.port,
                 self.database,
             )
+
+            try:
+                resolved_ips = socket.gethostbyname_ex(self.host)
+
+                logger.info(
+                    "Redshift DNS resolution: hostname=%s aliases=%s addresses=%s",
+                    resolved_ips[0],
+                    resolved_ips[1],
+                    resolved_ips[2],
+                )
+
+            except Exception:
+                logger.exception(
+                    "Failed to resolve Redshift hostname: %s",
+                    self.host,
+                )
 
             username, password = self._get_iam_credentials()
 
