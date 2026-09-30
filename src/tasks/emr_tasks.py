@@ -153,13 +153,13 @@ def add_transform_step() -> EmrAddStepsOperator:
                     # Download Python dependencies from S3.
                     f"aws s3 cp "
                     f"s3://{S3_BUCKET}/requirements.txt /tmp/requirements.txt; "
-                    # Set EMR runtime environment
+                    # Set EMR runtime environment.
                     "export ENV=emr; "
                     # Install Python dependencies.
                     "rm -rf /tmp/python_deps; "
                     "mkdir -p /tmp/python_deps; "
-                    "/usr/bin/python3.11 -m pip install --target /tmp/python_deps -r "
-                    "/tmp/requirements.txt; "
+                    "/usr/bin/python3.11 -m pip install --target /tmp/python_deps "
+                    "-r /tmp/requirements.txt; "
                     # Create a ZIP containing the src package.
                     "rm -f /tmp/src.zip; "
                     "cd /tmp; "
@@ -170,6 +170,23 @@ def add_transform_step() -> EmrAddStepsOperator:
                     "rm -f /tmp/dependencies.zip; "
                     "cd /tmp/python_deps; "
                     "zip -r /tmp/dependencies.zip .; "
+                    # Debug botocore package and endpoint metadata.
+                    'echo "===== BOTOCore DEBUG ====="; '
+                    "python3.11 -c "
+                    '"import botocore; '
+                    "print('VERSION:', botocore.__version__); "
+                    "print('PATH:', botocore.__path__[0])\"; "
+                    'echo "===== ENDPOINTS IN PACKAGE ====="; '
+                    "find /tmp/python_deps/botocore/data "
+                    '-name "endpoints.json" '
+                    '-o -name "partitions.json"; '
+                    'echo "===== ENDPOINTS IN ZIP ====="; '
+                    "unzip -l /tmp/dependencies.zip "
+                    "| grep -E "
+                    '"botocore/data/(endpoints.json|partitions.json)"; '
+                    'echo "===== ZIP SIZE ====="; '
+                    "ls -lh /tmp/dependencies.zip; "
+                    'echo "===== END BOTOCore DEBUG ====="; '
                     # Submit Spark job with the Python package.
                     "spark-submit "
                     "--deploy-mode cluster "
@@ -190,9 +207,7 @@ def add_transform_step() -> EmrAddStepsOperator:
             "key='return_value'"
             ") }}"
         ),
-        steps=[
-            transform_step,
-        ],
+        steps=[transform_step],
         aws_conn_id="aws_default",
         region_name=AWS_REGION,
     )

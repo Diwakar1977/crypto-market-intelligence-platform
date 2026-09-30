@@ -191,32 +191,40 @@ def test_add_transform_step() -> None:
         "-c",
         (
             "set -euo pipefail; "
-            # Download Python dependencies from S3.
             f"aws s3 cp "
             f"s3://{S3_BUCKET}/requirements.txt /tmp/requirements.txt; "
-            # Set EMR runtime environment
             "export ENV=emr; "
-            # Install Python dependencies into a dedicated directory.
             "rm -rf /tmp/python_deps; "
             "mkdir -p /tmp/python_deps; "
             "/usr/bin/python3.11 -m pip install "
             "--target /tmp/python_deps "
             "-r /tmp/requirements.txt; "
-            # Remove previous source ZIP.
             "rm -f /tmp/src.zip; "
             "cd /tmp; "
-            # Download source package from S3.
             f"aws s3 cp "
             f"s3://{S3_BUCKET}/dags/src/ /tmp/src/ --recursive; "
-            # Move to /tmp before creating source ZIP.
             "cd /tmp; "
-            # Create source ZIP.
             "zip -r /tmp/src.zip src; "
-            # Create dependencies ZIP.
             "rm -f /tmp/dependencies.zip; "
             "cd /tmp/python_deps; "
             "zip -r /tmp/dependencies.zip .; "
-            # Submit Spark transformation job.
+            # Debug botocore package and endpoint metadata.
+            'echo "===== BOTOCore DEBUG ====="; '
+            "python3.11 -c "
+            '"import botocore; '
+            "print('VERSION:', botocore.__version__); "
+            "print('PATH:', botocore.__path__[0])\"; "
+            'echo "===== ENDPOINTS IN PACKAGE ====="; '
+            "find /tmp/python_deps/botocore/data "
+            '-name "endpoints.json" '
+            '-o -name "partitions.json"; '
+            'echo "===== ENDPOINTS IN ZIP ====="; '
+            "unzip -l /tmp/dependencies.zip "
+            "| grep -E "
+            '"botocore/data/(endpoints.json|partitions.json)"; '
+            'echo "===== ZIP SIZE ====="; '
+            "ls -lh /tmp/dependencies.zip; "
+            'echo "===== END BOTOCore DEBUG ====="; '
             "spark-submit "
             "--deploy-mode cluster "
             "--conf spark.yarn.appMasterEnv.ENV=emr "
