@@ -21,5 +21,6 @@ pytest-cov
 ruff
 black
 mypy
+mypy-boto3-s3
 build
 twine
