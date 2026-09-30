@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import Any
 
 import boto3
 from pyspark.sql import DataFrame, SparkSession
@@ -313,7 +314,7 @@ class TransformJob:
         if "/" not in s3_path:
             raise ValueError("Invalid S3A path. " "Expected s3a://bucket/key.")
 
-        bucket, key = s3_path.split(
+        bucket, prefix = s3_path.split(
             "/",
             1,
         )
@@ -321,16 +322,42 @@ class TransformJob:
         if not bucket:
             raise ValueError("S3 bucket cannot be empty.")
 
-        if not key:
+        if not prefix:
             raise ValueError("S3 object key cannot be empty.")
 
         s3 = boto3.client(
             "s3",
         )
 
+        paginator = s3.get_paginator("list_objects_v2")
+
+        ndjson_objects: list[dict[str, Any]] = []
+
+        for page in paginator.paginate(
+            Bucket=bucket,
+            Prefix=prefix,
+        ):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+
+                if key.endswith(".ndjson"):
+                    ndjson_objects.append(obj)
+
+        if not ndjson_objects:
+            raise ValueError(
+                "No NDJSON objects found under S3 prefix: " f"s3://{bucket}/{prefix}"
+            )
+
+        latest_object = max(
+            ndjson_objects,
+            key=lambda obj: obj["LastModified"],
+        )
+
+        latest_key = latest_object["Key"]
+
         response = s3.get_object(
             Bucket=bucket,
-            Key=key,
+            Key=latest_key,
         )
 
         body = response["Body"]
@@ -341,12 +368,15 @@ class TransformJob:
             body.close()
 
         if not first_line_bytes:
-            raise ValueError("Raw NDJSON file is empty.")
+            raise ValueError("NDJSON file is empty: " f"s3://{bucket}/{latest_key}")
 
         first_line = first_line_bytes.decode("utf-8").strip()
 
         if not first_line:
-            raise ValueError("First NDJSON line is empty.")
+            raise ValueError(
+                "Latest raw NDJSON file has an empty first line: "
+                f"s3://{bucket}/{latest_key}"
+            )
 
         try:
             first_record = json.loads(

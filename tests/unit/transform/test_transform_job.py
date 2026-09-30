@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
@@ -80,13 +81,8 @@ def transform_job() -> Any:
     """
     Create a TransformJob with mocked dependencies.
 
-    Any is intentional here.
-
-    TransformJob contains strongly typed production methods such as
-    Spark DataFrameReader.json(), while unit tests replace those
-    collaborators with MagicMock objects. Mypy otherwise sees the
-    production method signatures and rejects MagicMock attributes such
-    as return_value, side_effect, assert_called_once_with, etc.
+    Any is intentional because production dependencies are
+    strongly typed while unit tests replace them with MagicMock.
     """
 
     return TransformJob(
@@ -129,10 +125,13 @@ def configure_pipeline(
     # --------------------------------------------------------
 
     raw_df = MagicMock()
+
     raw_df.columns = RAW_COLUMNS.copy()
+
     raw_df.count.return_value = 100
 
     row = MagicMock()
+
     row.asDict.return_value = {
         "id": "bitcoin",
         "symbol": "btc",
@@ -189,6 +188,7 @@ def configure_pipeline(
     # --------------------------------------------------------
 
     typed_df = MagicMock()
+
     typed_df.columns = RAW_COLUMNS.copy()
 
     transform_job.schema_manager.apply_schema.return_value = typed_df
@@ -209,6 +209,7 @@ def configure_pipeline(
     # --------------------------------------------------------
 
     normalized_df = MagicMock()
+
     normalized_df.columns = RAW_COLUMNS.copy()
 
     transform_job.data_normalizer.normalize.return_value = normalized_df
@@ -218,6 +219,7 @@ def configure_pipeline(
     # --------------------------------------------------------
 
     processed_df = MagicMock()
+
     processed_df.columns = FINAL_COLUMNS.copy()
 
     transform_job.feature_engineer.transform.return_value = processed_df
@@ -227,6 +229,7 @@ def configure_pipeline(
     # --------------------------------------------------------
 
     ordered_df = MagicMock()
+
     ordered_df.columns = FINAL_COLUMNS.copy()
 
     processed_df.select.return_value = ordered_df
@@ -291,6 +294,23 @@ def test_read_raw_data_empty_path(
 # ============================================================
 
 
+def _configure_s3_paginator(
+    s3: MagicMock,
+    objects: list[dict[str, Any]],
+) -> None:
+    """Configure the mocked list_objects_v2 paginator."""
+
+    paginator = MagicMock()
+
+    paginator.paginate.return_value = [
+        {
+            "Contents": objects,
+        },
+    ]
+
+    s3.get_paginator.return_value = paginator
+
+
 @patch("src.transform.transform_job.boto3.client")
 def test_get_original_json_column_order_success(
     mock_boto_client: MagicMock,
@@ -302,11 +322,28 @@ def test_get_original_json_column_order_success(
 
     s3 = MagicMock()
 
+    mock_boto_client.return_value = s3
+
+    _configure_s3_paginator(
+        s3,
+        [
+            {
+                "Key": "raw_data/file.ndjson",
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    2,
+                    21,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+    )
+
     s3.get_object.return_value = {
         "Body": body,
     }
-
-    mock_boto_client.return_value = s3
 
     result = TransformJob._get_original_json_column_order(
         "s3a://crypto-etl-dev/raw_data/file.ndjson",
@@ -318,7 +355,18 @@ def test_get_original_json_column_order_success(
         "symbol",
     ]
 
-    mock_boto_client.assert_called_once_with("s3")
+    mock_boto_client.assert_called_once_with(
+        "s3",
+    )
+
+    s3.get_paginator.assert_called_once_with(
+        "list_objects_v2",
+    )
+
+    s3.get_paginator.return_value.paginate.assert_called_once_with(
+        Bucket="crypto-etl-dev",
+        Prefix="raw_data/file.ndjson",
+    )
 
     s3.get_object.assert_called_once_with(
         Bucket="crypto-etl-dev",
@@ -326,6 +374,84 @@ def test_get_original_json_column_order_success(
     )
 
     body.readline.assert_called_once()
+
+    body.close.assert_called_once()
+
+
+@patch("src.transform.transform_job.boto3.client")
+def test_get_original_json_column_order_selects_latest_ndjson(
+    mock_boto_client: MagicMock,
+) -> None:
+
+    body = MagicMock()
+
+    body.readline.return_value = b'{"id":"bitcoin","symbol":"btc","name":"Bitcoin"}\n'
+
+    s3 = MagicMock()
+
+    mock_boto_client.return_value = s3
+
+    _configure_s3_paginator(
+        s3,
+        [
+            {
+                "Key": (
+                    "raw_data/crypto_market/"
+                    "year=2026/month=09/day=01/"
+                    "run_time=210000.ndjson"
+                ),
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    1,
+                    21,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+            {
+                "Key": (
+                    "raw_data/crypto_market/"
+                    "year=2026/month=09/day=02/"
+                    "run_time=072240.ndjson"
+                ),
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    2,
+                    7,
+                    22,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+    )
+
+    s3.get_object.return_value = {
+        "Body": body,
+    }
+
+    result = TransformJob._get_original_json_column_order(
+        "s3a://crypto-etl-dev/raw_data",
+    )
+
+    assert result == [
+        "id",
+        "symbol",
+        "name",
+    ]
+
+    s3.get_object.assert_called_once_with(
+        Bucket="crypto-etl-dev",
+        Key=(
+            "raw_data/crypto_market/"
+            "year=2026/month=09/day=02/"
+            "run_time=072240.ndjson"
+        ),
+    )
+
+    body.readline.assert_called_once()
+
     body.close.assert_called_once()
 
 
@@ -361,27 +487,115 @@ def test_get_original_json_column_order_invalid_path() -> None:
 
 
 @patch("src.transform.transform_job.boto3.client")
+def test_get_original_json_column_order_no_ndjson_objects(
+    mock_boto_client: MagicMock,
+) -> None:
+
+    s3 = MagicMock()
+
+    mock_boto_client.return_value = s3
+
+    _configure_s3_paginator(
+        s3,
+        [],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="No NDJSON objects found under S3 prefix",
+    ):
+        TransformJob._get_original_json_column_order(
+            "s3a://crypto-etl-dev/raw_data",
+        )
+
+    s3.get_object.assert_not_called()
+
+
+@patch("src.transform.transform_job.boto3.client")
 def test_get_original_json_column_order_empty_file(
     mock_boto_client: MagicMock,
 ) -> None:
 
     body = MagicMock()
+
     body.readline.return_value = b""
 
     s3 = MagicMock()
+
+    mock_boto_client.return_value = s3
+
+    _configure_s3_paginator(
+        s3,
+        [
+            {
+                "Key": "raw_data/file.ndjson",
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    2,
+                    21,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+    )
 
     s3.get_object.return_value = {
         "Body": body,
     }
 
+    with pytest.raises(
+        ValueError,
+        match="NDJSON file is empty",
+    ):
+        TransformJob._get_original_json_column_order(
+            "s3a://crypto-etl-dev/raw_data",
+        )
+
+    body.close.assert_called_once()
+
+
+@patch("src.transform.transform_job.boto3.client")
+def test_get_original_json_column_order_empty_first_line(
+    mock_boto_client: MagicMock,
+) -> None:
+
+    body = MagicMock()
+
+    body.readline.return_value = b"\n"
+
+    s3 = MagicMock()
+
     mock_boto_client.return_value = s3
+
+    _configure_s3_paginator(
+        s3,
+        [
+            {
+                "Key": "raw_data/file.ndjson",
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    2,
+                    21,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+    )
+
+    s3.get_object.return_value = {
+        "Body": body,
+    }
 
     with pytest.raises(
         ValueError,
-        match="Raw NDJSON file is empty",
+        match="Latest raw NDJSON file has an empty first line",
     ):
         TransformJob._get_original_json_column_order(
-            "s3a://crypto-etl-dev/raw_data/file.ndjson",
+            "s3a://crypto-etl-dev/raw_data",
         )
 
     body.close.assert_called_once()
@@ -393,22 +607,40 @@ def test_get_original_json_column_order_invalid_json(
 ) -> None:
 
     body = MagicMock()
+
     body.readline.return_value = b"invalid-json\n"
 
     s3 = MagicMock()
 
+    mock_boto_client.return_value = s3
+
+    _configure_s3_paginator(
+        s3,
+        [
+            {
+                "Key": "raw_data/file.ndjson",
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    2,
+                    21,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+    )
+
     s3.get_object.return_value = {
         "Body": body,
     }
-
-    mock_boto_client.return_value = s3
 
     with pytest.raises(
         ValueError,
         match="First NDJSON line is not valid JSON",
     ):
         TransformJob._get_original_json_column_order(
-            "s3a://crypto-etl-dev/raw_data/file.ndjson",
+            "s3a://crypto-etl-dev/raw_data",
         )
 
     body.close.assert_called_once()
@@ -420,22 +652,85 @@ def test_get_original_json_column_order_non_object(
 ) -> None:
 
     body = MagicMock()
+
     body.readline.return_value = b'["bitcoin"]\n'
 
     s3 = MagicMock()
 
+    mock_boto_client.return_value = s3
+
+    _configure_s3_paginator(
+        s3,
+        [
+            {
+                "Key": "raw_data/file.ndjson",
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    2,
+                    21,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+    )
+
     s3.get_object.return_value = {
         "Body": body,
     }
-
-    mock_boto_client.return_value = s3
 
     with pytest.raises(
         TypeError,
         match="First NDJSON record must be a JSON object",
     ):
         TransformJob._get_original_json_column_order(
-            "s3a://crypto-etl-dev/raw_data/file.ndjson",
+            "s3a://crypto-etl-dev/raw_data",
+        )
+
+    body.close.assert_called_once()
+
+
+@patch("src.transform.transform_job.boto3.client")
+def test_get_original_json_column_order_empty_columns(
+    mock_boto_client: MagicMock,
+) -> None:
+
+    body = MagicMock()
+
+    body.readline.return_value = b"{}\n"
+
+    s3 = MagicMock()
+
+    mock_boto_client.return_value = s3
+
+    _configure_s3_paginator(
+        s3,
+        [
+            {
+                "Key": "raw_data/file.ndjson",
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    2,
+                    21,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+    )
+
+    s3.get_object.return_value = {
+        "Body": body,
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="First NDJSON record contains no columns",
+    ):
+        TransformJob._get_original_json_column_order(
+            "s3a://crypto-etl-dev/raw_data",
         )
 
     body.close.assert_called_once()
@@ -449,6 +744,7 @@ def test_get_original_json_column_order_non_object(
 def test_validate_source_columns_success() -> None:
 
     df = MagicMock()
+
     df.columns = RAW_COLUMNS.copy()
 
     TransformJob._validate_source_columns(
@@ -460,6 +756,7 @@ def test_validate_source_columns_success() -> None:
 def test_validate_source_columns_failure() -> None:
 
     df = MagicMock()
+
     df.columns = RAW_COLUMNS[:-1]
 
     with pytest.raises(
@@ -480,6 +777,7 @@ def test_validate_source_columns_failure() -> None:
 def test_validate_normalized_columns_success() -> None:
 
     df = MagicMock()
+
     df.columns = RAW_COLUMNS.copy()
 
     TransformJob._validate_normalized_columns(
@@ -491,6 +789,7 @@ def test_validate_normalized_columns_success() -> None:
 def test_validate_normalized_columns_failure() -> None:
 
     df = MagicMock()
+
     df.columns = RAW_COLUMNS[:-1]
 
     with pytest.raises(
@@ -551,6 +850,7 @@ def test_order_processed_columns_empty(
 ) -> None:
 
     processed_df = MagicMock()
+
     processed_df.columns = []
 
     with pytest.raises(
@@ -660,9 +960,6 @@ def test_handle_validation_result_success() -> None:
         invalid_count=0,
     )
 
-    # Positional argument intentionally used here.
-    # The production method does not expose "result" as a
-    # keyword parameter.
     TransformJob._handle_validation_result(
         cast(Any, result),
     )
@@ -707,7 +1004,7 @@ def test_run_empty_input_path(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_success(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -752,6 +1049,7 @@ def test_run_success(
     )
 
     raw_df.count.assert_called_once()
+
     raw_df.collect.assert_called_once()
 
     # --------------------------------------------------------
@@ -763,6 +1061,7 @@ def test_run_success(
     records = transform_job.schema_inferer.infer.call_args.args[0]
 
     assert len(records) == 1
+
     assert records[0]["id"] == "bitcoin"
 
     # --------------------------------------------------------
@@ -850,7 +1149,7 @@ def test_run_success(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_empty_raw_data(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -862,6 +1161,7 @@ def test_run_empty_raw_data(
     raw_df = MagicMock()
 
     raw_df.columns = RAW_COLUMNS.copy()
+
     raw_df.count.return_value = 0
 
     transform_job.spark.read.json.return_value = raw_df
@@ -879,8 +1179,11 @@ def test_run_empty_raw_data(
         transform_job.run(INPUT_PATH)
 
     transform_job.schema_inferer.infer.assert_not_called()
+
     transform_job.schema_manager.normalize.assert_not_called()
+
     transform_job.data_validator.validate.assert_not_called()
+
     transform_job.parquet_writer.write.assert_not_called()
 
 
@@ -889,7 +1192,7 @@ def test_run_empty_raw_data(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_source_column_missing(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -901,6 +1204,7 @@ def test_run_source_column_missing(
     raw_df = MagicMock()
 
     raw_df.columns = RAW_COLUMNS[:-1]
+
     raw_df.count.return_value = 100
 
     transform_job.spark.read.json.return_value = raw_df
@@ -918,7 +1222,9 @@ def test_run_source_column_missing(
         transform_job.run(INPUT_PATH)
 
     transform_job.schema_inferer.infer.assert_not_called()
+
     transform_job.schema_manager.normalize.assert_not_called()
+
     transform_job.parquet_writer.write.assert_not_called()
 
 
@@ -927,7 +1233,7 @@ def test_run_source_column_missing(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_schema_inference_failure(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -939,6 +1245,7 @@ def test_run_schema_inference_failure(
     raw_df = MagicMock()
 
     raw_df.columns = RAW_COLUMNS.copy()
+
     raw_df.count.return_value = 100
 
     row = MagicMock()
@@ -968,8 +1275,11 @@ def test_run_schema_inference_failure(
         transform_job.run(INPUT_PATH)
 
     transform_job.schema_inferer.infer.assert_called_once()
+
     transform_job.schema_manager.normalize.assert_not_called()
+
     transform_job.schema_manager.validate.assert_not_called()
+
     transform_job.parquet_writer.write.assert_not_called()
 
 
@@ -978,7 +1288,7 @@ def test_run_schema_inference_failure(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_schema_validation_failure(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -1006,11 +1316,15 @@ def test_run_schema_validation_failure(
         transform_job.run(INPUT_PATH)
 
     transform_job.schema_inferer.infer.assert_called_once()
+
     transform_job.schema_manager.normalize.assert_called_once()
+
     transform_job.schema_manager.validate.assert_called_once()
 
     transform_job.schema_manager.apply_schema.assert_not_called()
+
     transform_job.data_validator.validate.assert_not_called()
+
     transform_job.parquet_writer.write.assert_not_called()
 
 
@@ -1019,7 +1333,7 @@ def test_run_schema_validation_failure(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_data_validation_failure(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -1052,7 +1366,9 @@ def test_run_data_validation_failure(
     transform_job.data_validator.validate.assert_called_once()
 
     transform_job.data_normalizer.normalize.assert_not_called()
+
     transform_job.feature_engineer.transform.assert_not_called()
+
     transform_job.parquet_writer.write.assert_not_called()
 
 
@@ -1061,7 +1377,7 @@ def test_run_data_validation_failure(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_normalization_failure(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -1091,6 +1407,7 @@ def test_run_normalization_failure(
     transform_job.data_normalizer.normalize.assert_called_once()
 
     transform_job.feature_engineer.transform.assert_not_called()
+
     transform_job.parquet_writer.write.assert_not_called()
 
 
@@ -1099,7 +1416,7 @@ def test_run_normalization_failure(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_feature_engineering_failure(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -1127,6 +1444,7 @@ def test_run_feature_engineering_failure(
         transform_job.run(INPUT_PATH)
 
     transform_job.data_normalizer.normalize.assert_called_once()
+
     transform_job.feature_engineer.transform.assert_called_once()
 
     transform_job.parquet_writer.write.assert_not_called()
@@ -1137,7 +1455,7 @@ def test_run_feature_engineering_failure(
 # ============================================================
 
 
-@patch("src.transform.transform_job.TransformJob." "_get_original_json_column_order")
+@patch("src.transform.transform_job." "TransformJob._get_original_json_column_order")
 def test_run_write_failure(
     mock_get_column_order: MagicMock,
     transform_job: Any,
@@ -1165,7 +1483,7 @@ def test_run_write_failure(
         transform_job.run(INPUT_PATH)
 
     transform_job.parquet_writer.write.assert_called_once_with(
-        df=transform_job.feature_engineer.transform.return_value.select.return_value,
+        df=(transform_job.feature_engineer.transform.return_value.select.return_value),
         output_path=PROCESSED_PATH,
         mode="append",
     )
@@ -1204,11 +1522,17 @@ def test_create_transform_job(
     assert result.spark is spark
 
     mock_schema_inferer.assert_called_once()
+
     mock_schema_manager.assert_called_once()
+
     mock_data_validator.assert_called_once()
+
     mock_data_normalizer.assert_called_once()
+
     mock_feature_engineer.assert_called_once()
+
     mock_path_builder.assert_called_once()
+
     mock_parquet_writer.assert_called_once()
 
 

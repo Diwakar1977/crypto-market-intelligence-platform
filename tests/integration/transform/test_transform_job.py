@@ -281,7 +281,7 @@ def test_transform_job_end_to_end(
     for column in expected_raw_columns:
         assert column in actual_columns
 
-    assert actual_columns[: len(expected_raw_columns)] == expected_raw_columns
+    assert actual_columns[: len(expected_raw_columns)] == (expected_raw_columns)
 
     derived_columns = [
         column for column in actual_columns if column not in expected_raw_columns
@@ -343,19 +343,197 @@ def test_transform_job_invalid_input_path() -> None:
 
 
 # =====================================================================
+# INVALID S3A PATH
+# =====================================================================
+
+
+def test_transform_job_invalid_s3a_path() -> None:
+    """Reject an S3A path without a bucket/key separator."""
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid S3A path",
+    ):
+        TransformJob._get_original_json_column_order(
+            "s3a://test-bucket",
+        )
+
+
+# =====================================================================
+# NO NDJSON OBJECTS
+# =====================================================================
+
+
+def test_transform_job_no_ndjson_objects() -> None:
+    """Reject an S3 prefix containing no NDJSON objects."""
+
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
+
+    fake_paginator = MagicMock()
+
+    fake_paginator.paginate.return_value = [
+        {
+            "Contents": [
+                {
+                    "Key": "raw_data/crypto_market/file.txt",
+                    "LastModified": "2026-09-30",
+                },
+            ],
+        },
+    ]
+
+    fake_s3 = MagicMock()
+
+    fake_s3.get_paginator.return_value = fake_paginator
+
+    with (
+        patch(
+            "src.transform.transform_job.boto3.client",
+            return_value=fake_s3,
+        ),
+        pytest.raises(
+            ValueError,
+            match="No NDJSON objects found under S3 prefix",
+        ),
+    ):
+        TransformJob._get_original_json_column_order(
+            raw_input_path,
+        )
+
+    fake_s3.get_paginator.assert_called_once_with(
+        "list_objects_v2",
+    )
+
+    fake_paginator.paginate.assert_called_once_with(
+        Bucket="test-bucket",
+        Prefix="raw_data/crypto_market/",
+    )
+
+    fake_s3.get_object.assert_not_called()
+
+
+# =====================================================================
+# LATEST NDJSON OBJECT
+# =====================================================================
+
+
+def test_transform_job_selects_latest_ndjson_object() -> None:
+    """Select the latest NDJSON object by LastModified."""
+
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
+
+    body = MagicMock()
+
+    body.readline.return_value = b'{"id":"bitcoin","symbol":"btc","name":"Bitcoin"}\n'
+
+    fake_paginator = MagicMock()
+
+    fake_paginator.paginate.return_value = [
+        {
+            "Contents": [
+                {
+                    "Key": (
+                        "raw_data/crypto_market/"
+                        "year=2026/month=09/day=29/"
+                        "run_time=210000.ndjson"
+                    ),
+                    "LastModified": "2026-09-29T15:00:00Z",
+                },
+                {
+                    "Key": (
+                        "raw_data/crypto_market/"
+                        "year=2026/month=09/day=30/"
+                        "run_time=072240.ndjson"
+                    ),
+                    "LastModified": "2026-09-30T07:22:40Z",
+                },
+                {
+                    "Key": (
+                        "raw_data/crypto_market/"
+                        "year=2026/month=09/day=30/"
+                        "run_time=080000.txt"
+                    ),
+                    "LastModified": "2026-09-30T08:00:00Z",
+                },
+            ],
+        },
+    ]
+
+    fake_s3 = MagicMock()
+
+    fake_s3.get_paginator.return_value = fake_paginator
+
+    fake_s3.get_object.return_value = {
+        "Body": body,
+    }
+
+    with patch(
+        "src.transform.transform_job.boto3.client",
+        return_value=fake_s3,
+    ):
+        result = TransformJob._get_original_json_column_order(
+            raw_input_path,
+        )
+
+    assert result == [
+        "id",
+        "symbol",
+        "name",
+    ]
+
+    fake_s3.get_paginator.assert_called_once_with(
+        "list_objects_v2",
+    )
+
+    fake_paginator.paginate.assert_called_once_with(
+        Bucket="test-bucket",
+        Prefix="raw_data/crypto_market/",
+    )
+
+    fake_s3.get_object.assert_called_once_with(
+        Bucket="test-bucket",
+        Key=(
+            "raw_data/crypto_market/"
+            "year=2026/month=09/day=30/"
+            "run_time=072240.ndjson"
+        ),
+    )
+
+    body.readline.assert_called_once_with()
+    body.close.assert_called_once_with()
+
+
+# =====================================================================
 # EMPTY S3 OBJECT
 # =====================================================================
 
 
 def test_transform_job_empty_s3_object() -> None:
-    """Reject an empty S3 NDJSON object."""
+    """Reject an empty latest S3 NDJSON object."""
 
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/" "empty.ndjson"
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
 
     fake_body = MagicMock()
+
     fake_body.readline.return_value = b""
 
+    fake_paginator = MagicMock()
+
+    fake_paginator.paginate.return_value = [
+        {
+            "Contents": [
+                {
+                    "Key": ("raw_data/crypto_market/" "empty.ndjson"),
+                    "LastModified": "2026-09-30T07:22:40Z",
+                },
+            ],
+        },
+    ]
+
     fake_s3 = MagicMock()
+
+    fake_s3.get_paginator.return_value = fake_paginator
+
     fake_s3.get_object.return_value = {
         "Body": fake_body,
     }
@@ -367,7 +545,7 @@ def test_transform_job_empty_s3_object() -> None:
         ),
         pytest.raises(
             ValueError,
-            match="Raw NDJSON file is empty.",
+            match="NDJSON file is empty:",
         ),
     ):
         TransformJob._get_original_json_column_order(
@@ -376,7 +554,7 @@ def test_transform_job_empty_s3_object() -> None:
 
     fake_s3.get_object.assert_called_once_with(
         Bucket="test-bucket",
-        Key="raw_data/crypto_market/empty.ndjson",
+        Key=("raw_data/crypto_market/" "empty.ndjson"),
     )
 
     fake_body.close.assert_called_once_with()
@@ -390,12 +568,29 @@ def test_transform_job_empty_s3_object() -> None:
 def test_transform_job_invalid_json() -> None:
     """Reject invalid JSON in the first NDJSON record."""
 
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/" "invalid.ndjson"
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
 
     fake_body = MagicMock()
+
     fake_body.readline.return_value = b"{invalid-json}\n"
 
+    fake_paginator = MagicMock()
+
+    fake_paginator.paginate.return_value = [
+        {
+            "Contents": [
+                {
+                    "Key": ("raw_data/crypto_market/" "invalid.ndjson"),
+                    "LastModified": "2026-09-30T07:22:40Z",
+                },
+            ],
+        },
+    ]
+
     fake_s3 = MagicMock()
+
+    fake_s3.get_paginator.return_value = fake_paginator
+
     fake_s3.get_object.return_value = {
         "Body": fake_body,
     }
@@ -425,12 +620,29 @@ def test_transform_job_invalid_json() -> None:
 def test_transform_job_first_record_not_object() -> None:
     """Reject a JSON array as the first NDJSON record."""
 
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/" "invalid.ndjson"
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
 
     fake_body = MagicMock()
+
     fake_body.readline.return_value = b"[1, 2, 3]\n"
 
+    fake_paginator = MagicMock()
+
+    fake_paginator.paginate.return_value = [
+        {
+            "Contents": [
+                {
+                    "Key": ("raw_data/crypto_market/" "invalid.ndjson"),
+                    "LastModified": "2026-09-30T07:22:40Z",
+                },
+            ],
+        },
+    ]
+
     fake_s3 = MagicMock()
+
+    fake_s3.get_paginator.return_value = fake_paginator
+
     fake_s3.get_object.return_value = {
         "Body": fake_body,
     }
@@ -460,14 +672,29 @@ def test_transform_job_first_record_not_object() -> None:
 def test_transform_job_empty_json_object() -> None:
     """Reject an empty JSON object."""
 
-    raw_input_path = (
-        "s3a://test-bucket/" "raw_data/crypto_market/" "empty-object.ndjson"
-    )
+    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
 
     fake_body = MagicMock()
+
     fake_body.readline.return_value = b"{}\n"
 
+    fake_paginator = MagicMock()
+
+    fake_paginator.paginate.return_value = [
+        {
+            "Contents": [
+                {
+                    "Key": ("raw_data/crypto_market/" "empty-object.ndjson"),
+                    "LastModified": "2026-09-30T07:22:40Z",
+                },
+            ],
+        },
+    ]
+
     fake_s3 = MagicMock()
+
+    fake_s3.get_paginator.return_value = fake_paginator
+
     fake_s3.get_object.return_value = {
         "Body": fake_body,
     }
@@ -538,6 +765,7 @@ def test_order_processed_columns() -> None:
             "current_price",
             "price_direction",
         ]
+
     finally:
         spark.stop()
 
@@ -580,6 +808,7 @@ def test_validate_final_columns_success() -> None:
             raw_column_order=raw_columns,
             processed_df=df,
         )
+
     finally:
         spark.stop()
 
@@ -619,5 +848,6 @@ def test_validate_final_columns_rejects_wrong_order() -> None:
                 raw_column_order=raw_columns,
                 processed_df=df,
             )
+
     finally:
         spark.stop()
