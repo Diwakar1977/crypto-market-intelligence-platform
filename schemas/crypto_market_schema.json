@@ -23,6 +23,6 @@
     "atl": "DoubleType",
     "atl_change_percentage": "DoubleType",
     "atl_date": "TimestampType",
-    "last_updated": "TimestampType",
-    "roi": "StructType"
+    "roi": "StructType",
+    "last_updated": "TimestampType"
 }

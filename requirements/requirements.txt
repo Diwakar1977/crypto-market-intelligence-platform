@@ -2,5 +2,7 @@ requests
 boto3
 botocore
 psycopg2-binary
+redshift-connector
 sqlalchemy
 PyYAML
+pyarrow

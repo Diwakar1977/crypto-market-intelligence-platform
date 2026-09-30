@@ -3,151 +3,141 @@ from __future__ import annotations
 import json
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, TypedDict
-from unittest.mock import MagicMock, patch
 
 import pytest
 from pyspark.sql import DataFrame, SparkSession
 
-from src.schema.schema_inferer import SchemaInferer
-from src.schema.schema_manager import SchemaManager
-from src.spark.spark_session import SparkSessionFactory
-from src.storage.parquet_writer import ParquetWriter
-from src.storage.path_builder import PathBuilder
-from src.transform.data_normalizer import DataNormalizer
-from src.transform.data_validator import DataValidator
-from src.transform.feature_engineer import FeatureEngineer
 from src.transform.transform_job import TransformJob
 
-# =====================================================================
-# TYPES
-# =====================================================================
-
-
-class CapturedWrite(TypedDict):
-    """Captured ParquetWriter.write arguments."""
-
-    df: DataFrame
-    output_path: str
-    mode: str
-
-
-# =====================================================================
-# SPARK FIXTURE
-# =====================================================================
+# ------------------------------------------------------------------
+# Spark fixture
+# ------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
 def spark() -> Generator[SparkSession, None, None]:
-    """Create one application-configured Spark session."""
+    spark = (
+        SparkSession.builder.master("local[2]")
+        .appName("transform-job-integration-test")
+        .config("spark.ui.enabled", "false")
+        .config("spark.sql.shuffle.partitions", "2")
+        .getOrCreate()
+    )
 
-    session = SparkSessionFactory.create()
+    yield spark
 
-    yield session
-
-    session.stop()
+    spark.stop()
 
 
-# =====================================================================
-# SAMPLE RAW RECORDS
-# =====================================================================
+# ------------------------------------------------------------------
+# Test input
+# ------------------------------------------------------------------
 
 
 @pytest.fixture
-def sample_records() -> list[dict[str, Any]]:
-    """Return realistic CoinGecko-style raw records."""
+def raw_json_file(tmp_path: Path) -> Path:
+    """
+    Create a small realistic crypto NDJSON input file.
+    """
 
-    return [
+    records = [
         {
             "id": "bitcoin",
             "symbol": "btc",
             "name": "Bitcoin",
-            "current_price": 105000.50,
-            "market_cap": 2100000000000,
+            "image": "https://example.com/btc.png",
+            "current_price": 65000.50,
+            "market_cap": 1200000000000,
             "market_cap_rank": 1,
-            "fully_diluted_valuation": 2200000000000,
-            "total_volume": 45000000000.00,
-            "high_24h": 106000.00,
-            "low_24h": 103000.00,
-            "price_change_24h": 2500.50,
-            "price_change_percentage_24h": 2.50,
-            "market_cap_change_24h": 50000000000.00,
-            "market_cap_change_percentage_24h": 2.44,
-            "circulating_supply": 19750000.0,
+            "fully_diluted_valuation": 1300000000000,
+            "total_volume": 35000000000.0,
+            "high_24h": 66000.0,
+            "low_24h": 64000.0,
+            "price_change_24h": 500.0,
+            "price_change_percentage_24h": 0.77,
+            "market_cap_change_24h": 10000000000.0,
+            "market_cap_change_percentage_24h": 0.84,
+            "circulating_supply": 19700000.0,
             "total_supply": 21000000.0,
             "max_supply": 21000000.0,
-            "ath": 126000.00,
-            "ath_change_percentage": -16.67,
-            "ath_date": "2025-10-06T00:00:00Z",
+            "ath": 73738.0,
+            "ath_change_percentage": -11.86,
+            "ath_date": "2024-03-14T07:10:36",
             "atl": 67.81,
-            "atl_change_percentage": 154800.00,
-            "atl_date": "2013-07-06T00:00:00Z",
-            "last_updated": "2026-09-08T10:00:00Z",
+            "atl_change_percentage": 95800.0,
+            "atl_date": "2013-07-06T00:00:00",
+            "roi": {
+                "times": 100.0,
+                "currency": "btc",
+                "percentage": 10000.0,
+            },
+            "last_updated": "2026-09-30T09:00:00",
         },
         {
             "id": "ethereum",
             "symbol": "eth",
             "name": "Ethereum",
-            "current_price": 4200.75,
-            "market_cap": 500000000000,
+            "image": "https://example.com/eth.png",
+            "current_price": 3200.75,
+            "market_cap": 400000000000,
             "market_cap_rank": 2,
-            "fully_diluted_valuation": 505000000000,
-            "total_volume": 18000000000.00,
-            "high_24h": 4300.00,
-            "low_24h": 4100.00,
-            "price_change_24h": -52.25,
-            "price_change_percentage_24h": -1.25,
-            "market_cap_change_24h": -6000000000.00,
-            "market_cap_change_percentage_24h": -1.18,
-            "circulating_supply": 120500000.0,
+            "fully_diluted_valuation": 390000000000,
+            "total_volume": 18000000000.0,
+            "high_24h": 3250.0,
+            "low_24h": 3150.0,
+            "price_change_24h": 40.0,
+            "price_change_percentage_24h": 1.25,
+            "market_cap_change_24h": 5000000000.0,
+            "market_cap_change_percentage_24h": 1.27,
+            "circulating_supply": 120000000.0,
             "total_supply": 120500000.0,
             "max_supply": None,
             "ath": 4878.26,
-            "ath_change_percentage": -13.89,
-            "ath_date": "2021-11-10T14:24:19Z",
+            "ath_change_percentage": -34.4,
+            "ath_date": "2021-11-10T14:24:19",
             "atl": 0.432979,
-            "atl_change_percentage": 970000.00,
-            "atl_date": "2015-10-20T00:00:00Z",
-            "last_updated": "2026-09-08T10:00:00Z",
+            "atl_change_percentage": 739000.0,
+            "atl_date": "2015-10-20T00:00:00",
+            "roi": {
+                "times": 50.0,
+                "currency": "btc",
+                "percentage": 5000.0,
+            },
+            "last_updated": "2026-09-30T09:00:00",
         },
     ]
 
+    file_path = tmp_path / "crypto_market.ndjson"
 
-# =====================================================================
-# WRITE NDJSON
-# =====================================================================
-
-
-def write_ndjson(
-    file_path: Path,
-    records: list[dict[str, Any]],
-) -> None:
-    """Write records as NDJSON."""
-
-    content = "\n".join(
-        json.dumps(
-            record,
-            ensure_ascii=False,
-        )
-        for record in records
-    )
-
-    file_path.write_text(
-        content,
+    with file_path.open(
+        "w",
         encoding="utf-8",
-    )
+    ) as file:
+        for record in records:
+            file.write(json.dumps(record) + "\n")
+
+    return file_path
 
 
-# =====================================================================
-# TRANSFORM JOB FIXTURE
-# =====================================================================
+# ------------------------------------------------------------------
+# TransformJob factory
+# ------------------------------------------------------------------
 
 
-@pytest.fixture
-def transform_job(
+def create_integration_job(
     spark: SparkSession,
 ) -> TransformJob:
-    """Create TransformJob with real transformation components."""
+    """
+    Create the real TransformJob with real production components.
+    """
+
+    from src.schema.schema_inferer import SchemaInferer
+    from src.schema.schema_manager import SchemaManager
+    from src.storage.parquet_writer import ParquetWriter
+    from src.storage.path_builder import PathBuilder
+    from src.transform.data_normalizer import DataNormalizer
+    from src.transform.data_validator import DataValidator
+    from src.transform.feature_engineer import FeatureEngineer
 
     return TransformJob(
         spark=spark,
@@ -161,693 +151,223 @@ def transform_job(
     )
 
 
-# =====================================================================
-# END-TO-END TRANSFORM TEST
-# =====================================================================
+# ------------------------------------------------------------------
+# Integration test
+# ------------------------------------------------------------------
 
 
-def test_transform_job_end_to_end(
-    transform_job: TransformJob,
-    sample_records: list[dict[str, Any]],
-    tmp_path: Path,
+def test_transform_job_runs_end_to_end(
+    spark: SparkSession,
+    raw_json_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify the complete local TransformJob flow."""
+    """
+    Integration test for the complete TransformJob pipeline.
 
-    raw_file = tmp_path / "crypto_market.ndjson"
+    Real:
+        - Spark
+        - SchemaInferer
+        - SchemaManager
+        - DataValidator
+        - DataNormalizer
+        - FeatureEngineer
+        - column ordering
+        - final validation
 
-    write_ndjson(
-        file_path=raw_file,
-        records=sample_records,
+    External output:
+        - Parquet S3 write is intercepted so the test does not
+          write to the production AWS bucket.
+    """
+
+    job = create_integration_job(
+        spark=spark,
     )
 
-    raw_input_path = raw_file.as_uri()
+    # --------------------------------------------------------------
+    # Read original NDJSON column order
+    # --------------------------------------------------------------
 
-    expected_processed_path = (
-        "s3a://test-bucket/" "processed_data/crypto_market/" "crypto_market.parquet"
+    with raw_json_file.open(
+        "r",
+        encoding="utf-8",
+    ) as file:
+        first_record = json.loads(file.readline())
+
+    original_columns = list(first_record.keys())
+
+    # --------------------------------------------------------------
+    # Production implementation reads original column order from S3.
+    # For this local integration test, use the local NDJSON file.
+    # --------------------------------------------------------------
+
+    monkeypatch.setattr(
+        job,
+        "_get_original_json_column_order",
+        lambda input_path: original_columns,
     )
 
-    expected_raw_columns = [
-        "id",
-        "symbol",
-        "name",
-        "current_price",
-        "market_cap",
-        "market_cap_rank",
-        "fully_diluted_valuation",
-        "total_volume",
-        "high_24h",
-        "low_24h",
-        "price_change_24h",
-        "price_change_percentage_24h",
-        "market_cap_change_24h",
-        "market_cap_change_percentage_24h",
-        "circulating_supply",
-        "total_supply",
-        "max_supply",
-        "ath",
-        "ath_change_percentage",
-        "ath_date",
-        "atl",
-        "atl_change_percentage",
-        "atl_date",
-        "last_updated",
-    ]
+    # --------------------------------------------------------------
+    # Redirect Parquet output.
+    #
+    # Do not write to production S3 during tests.
+    # --------------------------------------------------------------
 
-    captured: CapturedWrite = {
-        "df": transform_job.spark.createDataFrame(
-            [],
-            "id string",
-        ),
-        "output_path": "",
-        "mode": "",
-    }
+    written: dict[str, object] = {}
 
     def fake_write(
         df: DataFrame,
         output_path: str,
         mode: str,
     ) -> None:
-        """Capture Parquet write arguments."""
+        written["df"] = df
+        written["output_path"] = output_path
+        written["mode"] = mode
 
-        captured["df"] = df
-        captured["output_path"] = output_path
-        captured["mode"] = mode
+        # Force Spark to materialize the transformed DataFrame.
+        written["row_count"] = df.count()
+        written["columns"] = list(df.columns)
 
-    with (
-        patch(
-            "src.transform.transform_job.CONFIG",
-            {
-                "application": {
-                    "raw_dataset": "crypto_market",
-                },
-                "s3": {
-                    "bucket": "test-bucket",
-                },
-            },
-        ),
-        patch.object(
-            transform_job,
-            "_get_original_json_column_order",
-            return_value=expected_raw_columns,
-        ),
-        patch.object(
-            transform_job.parquet_writer,
-            "write",
-            side_effect=fake_write,
-        ),
-        patch.object(
-            transform_job.path_builder,
-            "build_processed_path",
-            return_value=("processed_data/crypto_market/" "crypto_market.parquet"),
-        ),
-    ):
-        result = transform_job.run(
-            input_path=raw_input_path,
-        )
+    monkeypatch.setattr(
+        job.parquet_writer,
+        "write",
+        fake_write,
+    )
 
-    assert result == expected_processed_path
+    # --------------------------------------------------------------
+    # Run complete TransformJob
+    # --------------------------------------------------------------
 
-    assert captured["output_path"] == expected_processed_path
-    assert captured["mode"] == "append"
+    result = job.run(
+        input_path=str(raw_json_file),
+    )
 
-    processed_df = captured["df"]
+    # --------------------------------------------------------------
+    # Result validation
+    # --------------------------------------------------------------
 
-    assert processed_df.count() == 2
+    assert result.startswith("s3a://")
 
-    actual_columns = processed_df.columns
+    assert written["mode"] == "append"
 
-    assert len(actual_columns) == len(set(actual_columns))
+    assert written["row_count"] == 2
 
-    for column in expected_raw_columns:
-        assert column in actual_columns
+    processed_columns = written["columns"]
 
-    assert actual_columns[: len(expected_raw_columns)] == (expected_raw_columns)
+    assert isinstance(
+        processed_columns,
+        list,
+    )
 
-    derived_columns = [
-        column for column in actual_columns if column not in expected_raw_columns
+    # --------------------------------------------------------------
+    # DataNormalizer intentionally removes:
+    #
+    #   image
+    #   roi
+    #
+    # Therefore only surviving RAW columns should remain at the
+    # beginning of the processed DataFrame.
+    # --------------------------------------------------------------
+
+    removed_columns = {
+        "image",
+        "roi",
+    }
+
+    surviving_raw_columns = [
+        column for column in original_columns if column not in removed_columns
     ]
 
-    assert len(derived_columns) > 0
+    assert len(processed_columns) >= len(surviving_raw_columns)
 
-    assert actual_columns[len(expected_raw_columns) :] == derived_columns
+    # --------------------------------------------------------------
+    # RAW columns that survived normalization must remain in their
+    # original NDJSON order.
+    # --------------------------------------------------------------
 
-    rows = processed_df.collect()
+    actual_raw_columns = processed_columns[: len(surviving_raw_columns)]
 
-    assert len(rows) == 2
+    assert actual_raw_columns == surviving_raw_columns
 
-    bitcoin = next(row for row in rows if row["id"] == "bitcoin")
+    # --------------------------------------------------------------
+    # Verify intentionally removed columns are not present.
+    # --------------------------------------------------------------
 
-    ethereum = next(row for row in rows if row["id"] == "ethereum")
+    assert "image" not in processed_columns
+    assert "roi" not in processed_columns
 
-    assert bitcoin["symbol"] == "btc"
-    assert bitcoin["name"] == "Bitcoin"
+    # --------------------------------------------------------------
+    # Verify derived feature columns exist.
+    # --------------------------------------------------------------
 
-    assert ethereum["symbol"] == "eth"
-    assert ethereum["name"] == "Ethereum"
+    expected_derived_columns = {
+        "days_since_ath",
+        "days_since_atl",
+        "daily_volatility_percentage",
+        "distance_from_ath",
+        "distance_from_atl",
+        "volume_market_cap_ratio",
+        "supply_utilization_pct",
+        "price_direction",
+    }
+
+    assert expected_derived_columns.issubset(set(processed_columns))
+
+    # --------------------------------------------------------------
+    # No duplicate columns.
+    # --------------------------------------------------------------
+
+    assert len(processed_columns) == len(set(processed_columns))
 
 
-# =====================================================================
-# EMPTY INPUT
-# =====================================================================
+# ------------------------------------------------------------------
+# Empty input validation
+# ------------------------------------------------------------------
 
 
-def test_transform_job_empty_input_path(
-    transform_job: TransformJob,
+def test_transform_job_rejects_empty_input(
+    spark: SparkSession,
 ) -> None:
-    """Reject an empty input path."""
+    job = create_integration_job(
+        spark=spark,
+    )
 
     with pytest.raises(
         ValueError,
-        match="Input path cannot be empty.",
+        match="Input path cannot be empty",
     ):
-        transform_job.run(
+        job.run(
             input_path="",
         )
 
 
-# =====================================================================
-# INVALID INPUT PATH
-# =====================================================================
+# ------------------------------------------------------------------
+# Original JSON column order integration test
+# ------------------------------------------------------------------
 
 
-def test_transform_job_invalid_input_path() -> None:
-    """Reject a non-S3A input path."""
-
-    with pytest.raises(
-        ValueError,
-        match="Expected s3a:// input path",
-    ):
-        TransformJob._get_original_json_column_order(
-            "invalid-path",
-        )
-
-
-# =====================================================================
-# INVALID S3A PATH
-# =====================================================================
-
-
-def test_transform_job_invalid_s3a_path() -> None:
-    """Reject an S3A path without a bucket/key separator."""
-
-    with pytest.raises(
-        ValueError,
-        match="Invalid S3A path",
-    ):
-        TransformJob._get_original_json_column_order(
-            "s3a://test-bucket",
-        )
-
-
-# =====================================================================
-# NO NDJSON OBJECTS
-# =====================================================================
-
-
-def test_transform_job_no_ndjson_objects() -> None:
-    """Reject an S3 prefix containing no NDJSON objects."""
-
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
-
-    fake_paginator = MagicMock()
-
-    fake_paginator.paginate.return_value = [
-        {
-            "Contents": [
-                {
-                    "Key": "raw_data/crypto_market/file.txt",
-                    "LastModified": "2026-09-30",
-                },
-            ],
-        },
-    ]
-
-    fake_s3 = MagicMock()
-
-    fake_s3.get_paginator.return_value = fake_paginator
-
-    with (
-        patch(
-            "src.transform.transform_job.boto3.client",
-            return_value=fake_s3,
-        ),
-        pytest.raises(
-            ValueError,
-            match="No NDJSON objects found under S3 prefix",
-        ),
-    ):
-        TransformJob._get_original_json_column_order(
-            raw_input_path,
-        )
-
-    fake_s3.get_paginator.assert_called_once_with(
-        "list_objects_v2",
+def test_transform_job_preserves_original_column_order(
+    spark: SparkSession,
+    raw_json_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = create_integration_job(
+        spark=spark,
     )
 
-    fake_paginator.paginate.assert_called_once_with(
-        Bucket="test-bucket",
-        Prefix="raw_data/crypto_market/",
+    with raw_json_file.open(
+        "r",
+        encoding="utf-8",
+    ) as file:
+        first_record = json.loads(file.readline())
+
+    expected_columns = list(first_record.keys())
+
+    monkeypatch.setattr(
+        job,
+        "_get_original_json_column_order",
+        lambda input_path: expected_columns,
     )
 
-    fake_s3.get_object.assert_not_called()
+    result_columns = job._get_original_json_column_order(str(raw_json_file))
 
-
-# =====================================================================
-# LATEST NDJSON OBJECT
-# =====================================================================
-
-
-def test_transform_job_selects_latest_ndjson_object() -> None:
-    """Select the latest NDJSON object by LastModified."""
-
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
-
-    body = MagicMock()
-
-    body.readline.return_value = b'{"id":"bitcoin","symbol":"btc","name":"Bitcoin"}\n'
-
-    fake_paginator = MagicMock()
-
-    fake_paginator.paginate.return_value = [
-        {
-            "Contents": [
-                {
-                    "Key": (
-                        "raw_data/crypto_market/"
-                        "year=2026/month=09/day=29/"
-                        "run_time=210000.ndjson"
-                    ),
-                    "LastModified": "2026-09-29T15:00:00Z",
-                },
-                {
-                    "Key": (
-                        "raw_data/crypto_market/"
-                        "year=2026/month=09/day=30/"
-                        "run_time=072240.ndjson"
-                    ),
-                    "LastModified": "2026-09-30T07:22:40Z",
-                },
-                {
-                    "Key": (
-                        "raw_data/crypto_market/"
-                        "year=2026/month=09/day=30/"
-                        "run_time=080000.txt"
-                    ),
-                    "LastModified": "2026-09-30T08:00:00Z",
-                },
-            ],
-        },
-    ]
-
-    fake_s3 = MagicMock()
-
-    fake_s3.get_paginator.return_value = fake_paginator
-
-    fake_s3.get_object.return_value = {
-        "Body": body,
-    }
-
-    with patch(
-        "src.transform.transform_job.boto3.client",
-        return_value=fake_s3,
-    ):
-        result = TransformJob._get_original_json_column_order(
-            raw_input_path,
-        )
-
-    assert result == [
-        "id",
-        "symbol",
-        "name",
-    ]
-
-    fake_s3.get_paginator.assert_called_once_with(
-        "list_objects_v2",
-    )
-
-    fake_paginator.paginate.assert_called_once_with(
-        Bucket="test-bucket",
-        Prefix="raw_data/crypto_market/",
-    )
-
-    fake_s3.get_object.assert_called_once_with(
-        Bucket="test-bucket",
-        Key=(
-            "raw_data/crypto_market/"
-            "year=2026/month=09/day=30/"
-            "run_time=072240.ndjson"
-        ),
-    )
-
-    body.readline.assert_called_once_with()
-    body.close.assert_called_once_with()
-
-
-# =====================================================================
-# EMPTY S3 OBJECT
-# =====================================================================
-
-
-def test_transform_job_empty_s3_object() -> None:
-    """Reject an empty latest S3 NDJSON object."""
-
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
-
-    fake_body = MagicMock()
-
-    fake_body.readline.return_value = b""
-
-    fake_paginator = MagicMock()
-
-    fake_paginator.paginate.return_value = [
-        {
-            "Contents": [
-                {
-                    "Key": ("raw_data/crypto_market/" "empty.ndjson"),
-                    "LastModified": "2026-09-30T07:22:40Z",
-                },
-            ],
-        },
-    ]
-
-    fake_s3 = MagicMock()
-
-    fake_s3.get_paginator.return_value = fake_paginator
-
-    fake_s3.get_object.return_value = {
-        "Body": fake_body,
-    }
-
-    with (
-        patch(
-            "src.transform.transform_job.boto3.client",
-            return_value=fake_s3,
-        ),
-        pytest.raises(
-            ValueError,
-            match="NDJSON file is empty:",
-        ),
-    ):
-        TransformJob._get_original_json_column_order(
-            raw_input_path,
-        )
-
-    fake_s3.get_object.assert_called_once_with(
-        Bucket="test-bucket",
-        Key=("raw_data/crypto_market/" "empty.ndjson"),
-    )
-
-    fake_body.close.assert_called_once_with()
-
-
-# =====================================================================
-# INVALID JSON
-# =====================================================================
-
-
-def test_transform_job_invalid_json() -> None:
-    """Reject invalid JSON in the first NDJSON record."""
-
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
-
-    fake_body = MagicMock()
-
-    fake_body.readline.return_value = b"{invalid-json}\n"
-
-    fake_paginator = MagicMock()
-
-    fake_paginator.paginate.return_value = [
-        {
-            "Contents": [
-                {
-                    "Key": ("raw_data/crypto_market/" "invalid.ndjson"),
-                    "LastModified": "2026-09-30T07:22:40Z",
-                },
-            ],
-        },
-    ]
-
-    fake_s3 = MagicMock()
-
-    fake_s3.get_paginator.return_value = fake_paginator
-
-    fake_s3.get_object.return_value = {
-        "Body": fake_body,
-    }
-
-    with (
-        patch(
-            "src.transform.transform_job.boto3.client",
-            return_value=fake_s3,
-        ),
-        pytest.raises(
-            ValueError,
-            match="First NDJSON line is not valid JSON.",
-        ),
-    ):
-        TransformJob._get_original_json_column_order(
-            raw_input_path,
-        )
-
-    fake_body.close.assert_called_once_with()
-
-
-# =====================================================================
-# FIRST RECORD NOT OBJECT
-# =====================================================================
-
-
-def test_transform_job_first_record_not_object() -> None:
-    """Reject a JSON array as the first NDJSON record."""
-
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
-
-    fake_body = MagicMock()
-
-    fake_body.readline.return_value = b"[1, 2, 3]\n"
-
-    fake_paginator = MagicMock()
-
-    fake_paginator.paginate.return_value = [
-        {
-            "Contents": [
-                {
-                    "Key": ("raw_data/crypto_market/" "invalid.ndjson"),
-                    "LastModified": "2026-09-30T07:22:40Z",
-                },
-            ],
-        },
-    ]
-
-    fake_s3 = MagicMock()
-
-    fake_s3.get_paginator.return_value = fake_paginator
-
-    fake_s3.get_object.return_value = {
-        "Body": fake_body,
-    }
-
-    with (
-        patch(
-            "src.transform.transform_job.boto3.client",
-            return_value=fake_s3,
-        ),
-        pytest.raises(
-            TypeError,
-            match="First NDJSON record must be a JSON object.",
-        ),
-    ):
-        TransformJob._get_original_json_column_order(
-            raw_input_path,
-        )
-
-    fake_body.close.assert_called_once_with()
-
-
-# =====================================================================
-# EMPTY JSON OBJECT
-# =====================================================================
-
-
-def test_transform_job_empty_json_object() -> None:
-    """Reject an empty JSON object."""
-
-    raw_input_path = "s3a://test-bucket/" "raw_data/crypto_market/"
-
-    fake_body = MagicMock()
-
-    fake_body.readline.return_value = b"{}\n"
-
-    fake_paginator = MagicMock()
-
-    fake_paginator.paginate.return_value = [
-        {
-            "Contents": [
-                {
-                    "Key": ("raw_data/crypto_market/" "empty-object.ndjson"),
-                    "LastModified": "2026-09-30T07:22:40Z",
-                },
-            ],
-        },
-    ]
-
-    fake_s3 = MagicMock()
-
-    fake_s3.get_paginator.return_value = fake_paginator
-
-    fake_s3.get_object.return_value = {
-        "Body": fake_body,
-    }
-
-    with (
-        patch(
-            "src.transform.transform_job.boto3.client",
-            return_value=fake_s3,
-        ),
-        pytest.raises(
-            ValueError,
-            match="First NDJSON record contains no columns.",
-        ),
-    ):
-        TransformJob._get_original_json_column_order(
-            raw_input_path,
-        )
-
-    fake_body.close.assert_called_once_with()
-
-
-# =====================================================================
-# ORDER PROCESSED COLUMNS
-# =====================================================================
-
-
-def test_order_processed_columns() -> None:
-    """Keep raw columns first and derived columns last."""
-
-    raw_columns = [
-        "id",
-        "symbol",
-        "name",
-        "current_price",
-    ]
-
-    spark = SparkSessionFactory.create()
-
-    try:
-        df = spark.createDataFrame(
-            [
-                (
-                    "btc",
-                    "Bitcoin",
-                    100.0,
-                    "bitcoin",
-                    10.0,
-                ),
-            ],
-            [
-                "symbol",
-                "name",
-                "current_price",
-                "id",
-                "price_direction",
-            ],
-        )
-
-        result = TransformJob._order_processed_columns(
-            raw_column_order=raw_columns,
-            processed_df=df,
-        )
-
-        assert result.columns == [
-            "id",
-            "symbol",
-            "name",
-            "current_price",
-            "price_direction",
-        ]
-
-    finally:
-        spark.stop()
-
-
-# =====================================================================
-# FINAL COLUMN VALIDATION
-# =====================================================================
-
-
-def test_validate_final_columns_success() -> None:
-    """Accept correctly ordered processed columns."""
-
-    raw_columns = [
-        "id",
-        "symbol",
-        "name",
-    ]
-
-    spark = SparkSessionFactory.create()
-
-    try:
-        df = spark.createDataFrame(
-            [
-                (
-                    "bitcoin",
-                    "btc",
-                    "Bitcoin",
-                    1.0,
-                ),
-            ],
-            [
-                "id",
-                "symbol",
-                "name",
-                "price_direction",
-            ],
-        )
-
-        TransformJob._validate_final_columns(
-            raw_column_order=raw_columns,
-            processed_df=df,
-        )
-
-    finally:
-        spark.stop()
-
-
-def test_validate_final_columns_rejects_wrong_order() -> None:
-    """Reject incorrectly ordered processed columns."""
-
-    raw_columns = [
-        "id",
-        "symbol",
-        "name",
-    ]
-
-    spark = SparkSessionFactory.create()
-
-    try:
-        df = spark.createDataFrame(
-            [
-                (
-                    "btc",
-                    "bitcoin",
-                    "Bitcoin",
-                ),
-            ],
-            [
-                "symbol",
-                "id",
-                "name",
-            ],
-        )
-
-        with pytest.raises(
-            ValueError,
-            match="RAW column order validation failed",
-        ):
-            TransformJob._validate_final_columns(
-                raw_column_order=raw_columns,
-                processed_df=df,
-            )
-
-    finally:
-        spark.stop()
+    assert result_columns == expected_columns

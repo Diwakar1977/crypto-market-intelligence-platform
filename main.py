@@ -35,11 +35,16 @@ class CryptoETLPipeline:
 
         self.pipeline_name = str(self.application_config["pipeline_name"])
 
+        # Spark is required only for the transform stage.
         self.spark: SparkSession | None = None
 
         self.redshift_storage: RedshiftStorage | None = None
 
         self.extract_result: ExtractResult | None = None
+
+    # ==================================================================
+    # PIPELINE
+    # ==================================================================
 
     def run(self) -> LoadResult:
         """Run the complete Crypto Market ETL pipeline."""
@@ -79,7 +84,7 @@ class CryptoETLPipeline:
                 extract_result.record_count,
             )
 
-            raw_bucket = str(self.s3_config["bucket"])
+            raw_bucket = str(self.s3_config["bucket"]).strip()
 
             raw_spark_path = f"s3a://{raw_bucket}/{extract_result.s3_key}"
 
@@ -129,30 +134,12 @@ class CryptoETLPipeline:
             )
 
             # ==========================================================
-            # STEP 4 - CONVERT S3A PATH TO S3 PATH
+            # STEP 4 - INITIALIZE REDSHIFT
             # ==========================================================
 
             Logger.log_banner(
                 logger,
-                "STEP 4 - PREPARE REDSHIFT S3 PATH",
-            )
-
-            processed_s3_path = self._to_redshift_s3_path(
-                processed_spark_path,
-            )
-
-            logger.info(
-                "Processed Redshift COPY path: %s",
-                processed_s3_path,
-            )
-
-            # ==========================================================
-            # STEP 5 - INITIALIZE REDSHIFT
-            # ==========================================================
-
-            Logger.log_banner(
-                logger,
-                "STEP 5 - INITIALIZE REDSHIFT",
+                "STEP 4 - INITIALIZE REDSHIFT",
             )
 
             self.redshift_storage = RedshiftStorage(
@@ -166,22 +153,38 @@ class CryptoETLPipeline:
             logger.info("Redshift storage initialized successfully.")
 
             # ==========================================================
-            # STEP 6 - LOAD
+            # STEP 5 - LOAD
+            # ==========================================================
+            #
+            # IMPORTANT:
+            #
+            # LoadJob does NOT receive Spark.
+            #
+            # LoadJob will:
+            #
+            #   1. Find latest processed Parquet in S3.
+            #   2. Read its schema using PyArrow.
+            #   3. Generate CREATE TABLE SQL.
+            #   4. Create the Redshift table.
+            #   5. COPY only the latest processed run.
+            #
+            # Spark is therefore not required by MWAA/load stage.
+            #
             # ==========================================================
 
             Logger.log_banner(
                 logger,
-                "STEP 6 - LOAD",
+                "STEP 5 - LOAD",
             )
 
             load_job = create_load_job(
-                spark=self.spark,
                 redshift_storage=self.redshift_storage,
                 redshift_schema=str(self.redshift_config["schema"]),
                 redshift_table=str(self.redshift_config["table"]),
-                processed_spark_path=processed_spark_path,
-                processed_s3_path=processed_s3_path,
+                bucket=str(self.s3_config["bucket"]),
+                processed_prefix=str(self.s3_config["processed_prefix"]),
                 redshift_iam_role=str(self.redshift_config["iam_role"]),
+                aws_region=str(self.aws_config["region"]),
             )
 
             load_result = load_job.run()
@@ -194,13 +197,18 @@ class CryptoETLPipeline:
                 load_result.table_name,
             )
 
+            logger.info(
+                "Loaded source path: %s",
+                load_result.source_path,
+            )
+
             # ==========================================================
-            # STEP 7 - SUCCESS NOTIFICATION
+            # STEP 6 - SUCCESS NOTIFICATION
             # ==========================================================
 
             Logger.log_banner(
                 logger,
-                "STEP 7 - SUCCESS NOTIFICATION",
+                "STEP 6 - SUCCESS NOTIFICATION",
             )
 
             self._send_success_notification(
@@ -252,26 +260,9 @@ class CryptoETLPipeline:
                 "CRYPTO ETL PIPELINE FINISHED",
             )
 
-    @staticmethod
-    def _to_redshift_s3_path(
-        processed_spark_path: str,
-    ) -> str:
-        """Convert a Spark S3A path to a standard S3 path."""
-
-        if not processed_spark_path.strip():
-            raise ValueError("Processed Spark path cannot be empty.")
-
-        if processed_spark_path.startswith("s3a://"):
-            return processed_spark_path.replace(
-                "s3a://",
-                "s3://",
-                1,
-            )
-
-        if processed_spark_path.startswith("s3://"):
-            return processed_spark_path
-
-        raise ValueError("Processed path must start with " "'s3a://' or 's3://'.")
+    # ==================================================================
+    # SUCCESS NOTIFICATION
+    # ==================================================================
 
     def _send_success_notification(
         self,
@@ -280,7 +271,10 @@ class CryptoETLPipeline:
     ) -> None:
         """Send a successful pipeline notification through SNS."""
 
-        sns_config = self.config.get("sns", {})
+        sns_config = self.config.get(
+            "sns",
+            {},
+        )
 
         topic_arn = str(
             sns_config.get(
@@ -319,6 +313,10 @@ class CryptoETLPipeline:
         except Exception:
             logger.exception("Failed to send success notification.")
 
+    # ==================================================================
+    # FAILURE NOTIFICATION
+    # ==================================================================
+
     def _send_failure_notification(
         self,
         execution_date: str,
@@ -326,7 +324,10 @@ class CryptoETLPipeline:
     ) -> None:
         """Send a failed pipeline notification through SNS."""
 
-        sns_config = self.config.get("sns", {})
+        sns_config = self.config.get(
+            "sns",
+            {},
+        )
 
         topic_arn = str(
             sns_config.get(
@@ -365,6 +366,10 @@ class CryptoETLPipeline:
         except Exception:
             logger.exception("Failed to send failure notification.")
 
+    # ==================================================================
+    # REDSHIFT CLEANUP
+    # ==================================================================
+
     def _close_redshift(self) -> None:
         """Close Redshift resources."""
 
@@ -384,6 +389,10 @@ class CryptoETLPipeline:
         finally:
             self.redshift_storage = None
 
+    # ==================================================================
+    # SPARK CLEANUP
+    # ==================================================================
+
     def _stop_spark(self) -> None:
         """Stop the Spark session."""
 
@@ -402,6 +411,11 @@ class CryptoETLPipeline:
 
         finally:
             self.spark = None
+
+
+# ======================================================================
+# APPLICATION ENTRY POINT
+# ======================================================================
 
 
 def main() -> None:

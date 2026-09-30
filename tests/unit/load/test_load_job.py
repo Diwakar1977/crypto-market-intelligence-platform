@@ -1,291 +1,385 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import cast
+from unittest.mock import MagicMock
 
+import pyarrow as pa
 import pytest
-from pyspark.sql.types import (
-    DoubleType,
-    LongType,
-    StringType,
-    StructField,
-    StructType,
-)
 
-from src.load.load_job import (
-    LoadJob,
-    LoadResult,
-    create_load_job,
-    run_load_job,
-)
-from src.load.redshift_storage import RedshiftStorage
-
-# ============================================================
-# FIXTURES
-# ============================================================
-
-
-@pytest.fixture
-def spark() -> MagicMock:
-    """Return a mocked SparkSession."""
-    return MagicMock()
+from src.load.load_job import LoadJob, LoadResult
 
 
 @pytest.fixture
 def redshift_storage() -> MagicMock:
-    """Return a mocked RedshiftStorage."""
-    return MagicMock(spec=RedshiftStorage)
+    return MagicMock()
 
 
 @pytest.fixture
-def processed_schema() -> StructType:
-    """Return a representative processed Parquet schema."""
-    return StructType(
-        [
-            StructField("id", StringType(), True),
-            StructField("price", DoubleType(), True),
-            StructField("market_cap", DoubleType(), True),
-            StructField("volume", DoubleType(), True),
-            StructField("rank", LongType(), True),
-        ]
-    )
+def load_job(redshift_storage: MagicMock) -> LoadJob:
+    job = LoadJob.__new__(LoadJob)
+
+    job.redshift_storage = redshift_storage
+    job.redshift_schema = "public"
+    job.redshift_table = "crypto_market"
+    job.bucket = "crypto-etl-prod-data-ap-south-1"
+    job.processed_prefix = "processed_data"
+    job.redshift_iam_role = "arn:aws:iam::123456789012:role/CryptoETL-Redshift-Role"
+    job.aws_region = "ap-south-1"
+
+    job._s3_client = MagicMock()
+
+    return job
 
 
-@pytest.fixture
-def load_job(
-    spark: MagicMock,
-    redshift_storage: MagicMock,
-) -> LoadJob:
-    """Return a valid LoadJob."""
-    return LoadJob(
-        spark=spark,
-        redshift_storage=redshift_storage,
-        redshift_schema="analytics",
-        redshift_table="crypto_market",
-        processed_spark_path=("s3a://crypto-bucket/processed/"),
-        processed_s3_path=("s3://crypto-bucket/processed/"),
-        redshift_iam_role=("arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"),
-    )
+# ------------------------------------------------------------------
+# _find_latest_processed_run
+# ------------------------------------------------------------------
 
 
-# ============================================================
-# INITIALIZATION
-# ============================================================
-
-
-def test_load_job_initialization(
+def test_find_latest_processed_run_returns_latest_run(
     load_job: LoadJob,
 ) -> None:
-    """Test LoadJob stores configuration correctly."""
+    first_modified = datetime(
+        2026,
+        9,
+        30,
+        8,
+        30,
+        tzinfo=timezone.utc,
+    )
 
-    assert load_job.redshift_schema == "analytics"
-    assert load_job.redshift_table == "crypto_market"
+    latest_modified = datetime(
+        2026,
+        9,
+        30,
+        9,
+        30,
+        tzinfo=timezone.utc,
+    )
 
-    assert load_job.processed_spark_path == "s3a://crypto-bucket/processed/"
+    cast(MagicMock, load_job._s3_client.list_objects_v2).return_value = {
+        "Contents": [
+            {
+                "Key": (
+                    "processed_data/crypto_market/"
+                    "year=2026/month=09/day=30/"
+                    "time=083000/"
+                    "part-00000.parquet"
+                ),
+                "LastModified": first_modified,
+            },
+            {
+                "Key": (
+                    "processed_data/crypto_market/"
+                    "year=2026/month=09/day=30/"
+                    "time=093000/"
+                    "part-00000.parquet"
+                ),
+                "LastModified": latest_modified,
+            },
+            {
+                "Key": (
+                    "processed_data/crypto_market/"
+                    "year=2026/month=09/day=30/"
+                    "time=093000/"
+                    "_SUCCESS"
+                ),
+                "LastModified": latest_modified,
+            },
+        ],
+        "IsTruncated": False,
+    }
 
-    assert load_job.processed_s3_path == "s3://crypto-bucket/processed/"
+    result = load_job._find_latest_processed_run()
 
-    assert load_job.redshift_iam_role == (
-        "arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"
+    assert result == (
+        "processed_data/crypto_market/" "year=2026/month=09/day=30/" "time=093000/"
     )
 
 
-# ============================================================
-# READ PROCESSED SCHEMA
-# ============================================================
-
-
-def test_read_processed_schema(
+def test_find_latest_processed_run_ignores_non_parquet_files(
     load_job: LoadJob,
-    spark: MagicMock,
-    processed_schema: StructType,
 ) -> None:
-    """Test reading and validating the processed Parquet schema."""
+    cast(MagicMock, load_job._s3_client.list_objects_v2).return_value = {
+        "Contents": [
+            {
+                "Key": (
+                    "processed_data/crypto_market/"
+                    "year=2026/month=09/day=30/"
+                    "time=083000/"
+                    "_SUCCESS"
+                ),
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    30,
+                    8,
+                    30,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+        "IsTruncated": False,
+    }
 
-    dataframe = MagicMock()
-    dataframe.schema = processed_schema
-
-    spark.read.parquet.return_value = dataframe
-
-    with patch(
-        "src.load.load_job.RedshiftSchemaMapper.validate_schema"
-    ) as mock_validate:
-        result = load_job._read_processed_schema()
-
-    spark.read.parquet.assert_called_once_with("s3a://crypto-bucket/processed/")
-
-    mock_validate.assert_called_once_with(processed_schema)
-
-    assert result == processed_schema
+    with pytest.raises(
+        FileNotFoundError,
+        match="No processed Parquet files",
+    ):
+        load_job._find_latest_processed_run()
 
 
-# ============================================================
-# CREATE TABLE SQL
-# ============================================================
+def test_find_latest_processed_run_raises_when_no_objects(
+    load_job: LoadJob,
+) -> None:
+    cast(MagicMock, load_job._s3_client.list_objects_v2).return_value = {
+        "Contents": [],
+        "IsTruncated": False,
+    }
+
+    with pytest.raises(
+        FileNotFoundError,
+        match="No processed Parquet files",
+    ):
+        load_job._find_latest_processed_run()
+
+
+def test_find_latest_processed_run_handles_pagination(
+    load_job: LoadJob,
+) -> None:
+    first_response = {
+        "Contents": [
+            {
+                "Key": (
+                    "processed_data/crypto_market/"
+                    "year=2026/month=09/day=30/"
+                    "time=080000/"
+                    "part-00000.parquet"
+                ),
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    30,
+                    8,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+        "IsTruncated": True,
+        "NextContinuationToken": "TOKEN-1",
+    }
+
+    second_response = {
+        "Contents": [
+            {
+                "Key": (
+                    "processed_data/crypto_market/"
+                    "year=2026/month=09/day=30/"
+                    "time=090000/"
+                    "part-00000.parquet"
+                ),
+                "LastModified": datetime(
+                    2026,
+                    9,
+                    30,
+                    9,
+                    0,
+                    tzinfo=timezone.utc,
+                ),
+            },
+        ],
+        "IsTruncated": False,
+    }
+
+    cast(MagicMock, load_job._s3_client.list_objects_v2).side_effect = [
+        first_response,
+        second_response,
+    ]
+
+    result = load_job._find_latest_processed_run()
+
+    assert result == (
+        "processed_data/crypto_market/" "year=2026/month=09/day=30/" "time=090000/"
+    )
+
+    assert (
+        cast(
+            MagicMock,
+            load_job._s3_client.list_objects_v2,
+        ).call_count
+        == 2
+    )
+
+    second_call = cast(
+        MagicMock,
+        load_job._s3_client.list_objects_v2,
+    ).call_args_list[1]
+
+    assert second_call.kwargs["ContinuationToken"] == "TOKEN-1"
+
+
+# ------------------------------------------------------------------
+# _find_parquet_file
+# ------------------------------------------------------------------
+
+
+def test_find_parquet_file_returns_parquet_key(
+    load_job: LoadJob,
+) -> None:
+    run_prefix = (
+        "processed_data/crypto_market/" "year=2026/month=09/day=30/" "time=090000/"
+    )
+
+    cast(MagicMock, load_job._s3_client.list_objects_v2).return_value = {
+        "Contents": [
+            {
+                "Key": f"{run_prefix}_SUCCESS",
+            },
+            {
+                "Key": f"{run_prefix}part-00001.parquet",
+            },
+            {
+                "Key": f"{run_prefix}part-00000.parquet",
+            },
+        ],
+    }
+
+    result = load_job._find_parquet_file(run_prefix)
+
+    assert result == f"{run_prefix}part-00000.parquet"
+
+
+def test_find_parquet_file_raises_when_missing(
+    load_job: LoadJob,
+) -> None:
+    run_prefix = (
+        "processed_data/crypto_market/" "year=2026/month=09/day=30/" "time=090000/"
+    )
+
+    cast(MagicMock, load_job._s3_client.list_objects_v2).return_value = {
+        "Contents": [
+            {
+                "Key": f"{run_prefix}_SUCCESS",
+            },
+        ],
+    }
+
+    with pytest.raises(
+        FileNotFoundError,
+        match="No Parquet file found",
+    ):
+        load_job._find_parquet_file(run_prefix)
+
+
+# ------------------------------------------------------------------
+# _generate_create_table_sql
+# ------------------------------------------------------------------
 
 
 def test_generate_create_table_sql(
     load_job: LoadJob,
-    processed_schema: StructType,
 ) -> None:
-    """Test CREATE TABLE SQL generation."""
+    schema = pa.schema(
+        [
+            pa.field("id", pa.string()),
+            pa.field("market_cap", pa.int64()),
+            pa.field("current_price", pa.float64()),
+            pa.field(
+                "last_updated",
+                pa.timestamp("us"),
+            ),
+        ]
+    )
 
-    sql = load_job._generate_create_table_sql(processed_schema)
+    result = load_job._generate_create_table_sql(schema)
 
-    assert "CREATE TABLE IF NOT EXISTS" in sql
-    assert '"analytics"."crypto_market"' in sql
-
-    assert '"id"' in sql
-    assert '"price"' in sql
-    assert '"market_cap"' in sql
-    assert '"volume"' in sql
-    assert '"rank"' in sql
-
-    assert "VARCHAR" in sql
-    assert "DOUBLE PRECISION" in sql
-    assert "BIGINT" in sql
+    assert result == (
+        "CREATE TABLE IF NOT EXISTS "
+        '"public"."crypto_market" (\n'
+        '    "id" VARCHAR(65535),\n'
+        '    "market_cap" BIGINT,\n'
+        '    "current_price" DOUBLE PRECISION,\n'
+        '    "last_updated" TIMESTAMP\n'
+        ");"
+    )
 
 
-# ============================================================
-# COPY SQL
-# ============================================================
+# ------------------------------------------------------------------
+# _generate_copy_sql
+# ------------------------------------------------------------------
 
 
 def test_generate_copy_sql(
     load_job: LoadJob,
 ) -> None:
-    """Test Redshift COPY SQL generation."""
-
-    sql = load_job._generate_copy_sql()
-
-    assert 'COPY "analytics"."crypto_market"' in sql
-
-    assert "FROM 's3://crypto-bucket/processed/'" in sql
-
-    assert (
-        "IAM_ROLE " "'arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role'" in sql
+    run_prefix = (
+        "processed_data/crypto_market/" "year=2026/month=09/day=30/" "time=090000/"
     )
 
-    assert "FORMAT AS PARQUET;" in sql
+    result = load_job._generate_copy_sql(run_prefix)
 
-
-# ============================================================
-# COMPLETE RUN
-# ============================================================
-
-
-def test_run_success(
-    load_job: LoadJob,
-    spark: MagicMock,
-    redshift_storage: MagicMock,
-    processed_schema: StructType,
-) -> None:
-    """Test complete successful Redshift load."""
-
-    dataframe = MagicMock()
-    dataframe.schema = processed_schema
-
-    spark.read.parquet.return_value = dataframe
-
-    with patch("src.load.load_job.RedshiftSchemaMapper.validate_schema"):
-        result = load_job.run()
-
-    assert isinstance(result, LoadResult)
-    assert result.success is True
-    assert result.schema_name == "analytics"
-    assert result.table_name == "crypto_market"
-    assert result.source_path == "s3://crypto-bucket/processed/"
-
-    spark.read.parquet.assert_called_once_with("s3a://crypto-bucket/processed/")
-
-    assert redshift_storage.execute.call_count == 2
-
-
-# ============================================================
-# RUN FAILURE
-# ============================================================
-
-
-def test_run_fails_when_schema_read_fails(
-    load_job: LoadJob,
-    spark: MagicMock,
-) -> None:
-    """Test run propagates schema-read failures."""
-
-    spark.read.parquet.side_effect = RuntimeError(
-        "Unable to read processed Parquet data."
+    expected = (
+        'COPY "public"."crypto_market"\n'
+        "FROM "
+        "'s3://crypto-etl-prod-data-ap-south-1/"
+        "processed_data/crypto_market/"
+        "year=2026/month=09/day=30/"
+        "time=090000/'\n"
+        "IAM_ROLE "
+        "'arn:aws:iam::123456789012:"
+        "role/CryptoETL-Redshift-Role'\n"
+        "FORMAT AS PARQUET;"
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="Unable to read processed Parquet data",
-    ):
-        load_job.run()
+    assert result == expected
 
 
-def test_run_fails_when_create_table_fails(
+# ------------------------------------------------------------------
+# _create_target_table
+# ------------------------------------------------------------------
+
+
+def test_create_target_table(
     load_job: LoadJob,
-    spark: MagicMock,
     redshift_storage: MagicMock,
-    processed_schema: StructType,
 ) -> None:
-    """Test run propagates CREATE TABLE failures."""
+    sql = "CREATE TABLE IF NOT EXISTS " '"public"."crypto_market" ' '("id" BIGINT);'
 
-    dataframe = MagicMock()
-    dataframe.schema = processed_schema
+    load_job._create_target_table(sql)
 
-    spark.read.parquet.return_value = dataframe
-
-    redshift_storage.execute.side_effect = RuntimeError("CREATE TABLE failed.")
-
-    with (
-        patch("src.load.load_job.RedshiftSchemaMapper.validate_schema"),
-        pytest.raises(
-            RuntimeError,
-            match="CREATE TABLE failed",
-        ),
-    ):
-        load_job.run()
-
-    assert redshift_storage.execute.call_count == 1
+    redshift_storage.execute.assert_called_once_with(sql)
 
 
-def test_run_fails_when_copy_fails(
+# ------------------------------------------------------------------
+# _load_data
+# ------------------------------------------------------------------
+
+
+def test_load_data(
     load_job: LoadJob,
-    spark: MagicMock,
     redshift_storage: MagicMock,
-    processed_schema: StructType,
 ) -> None:
-    """Test run propagates COPY failures."""
+    sql = (
+        'COPY "public"."crypto_market" '
+        "FROM 's3://bucket/path/' "
+        "FORMAT AS PARQUET;"
+    )
 
-    dataframe = MagicMock()
-    dataframe.schema = processed_schema
+    load_job._load_data(sql)
 
-    spark.read.parquet.return_value = dataframe
-
-    redshift_storage.execute.side_effect = [
-        None,
-        RuntimeError("Redshift COPY failed."),
-    ]
-
-    with (
-        patch("src.load.load_job.RedshiftSchemaMapper.validate_schema"),
-        pytest.raises(
-            RuntimeError,
-            match="Redshift COPY failed",
-        ),
-    ):
-        load_job.run()
-
-    assert redshift_storage.execute.call_count == 2
+    redshift_storage.execute.assert_called_once_with(sql)
 
 
-# ============================================================
-# CONFIGURATION VALIDATION
-# ============================================================
+# ------------------------------------------------------------------
+# _validate_configuration
+# ------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    ("field_name", "field_value", "error_message"),
+    ("attribute", "value", "message"),
     [
         (
             "redshift_schema",
@@ -293,39 +387,19 @@ def test_run_fails_when_copy_fails(
             "Redshift schema name cannot be empty",
         ),
         (
-            "redshift_schema",
-            "   ",
-            "Redshift schema name cannot be empty",
-        ),
-        (
             "redshift_table",
             "",
             "Redshift table name cannot be empty",
         ),
         (
-            "redshift_table",
-            "   ",
-            "Redshift table name cannot be empty",
-        ),
-        (
-            "processed_spark_path",
+            "bucket",
             "",
-            "Processed Spark path cannot be empty",
+            "S3 bucket cannot be empty",
         ),
         (
-            "processed_spark_path",
-            "   ",
-            "Processed Spark path cannot be empty",
-        ),
-        (
-            "processed_s3_path",
+            "processed_prefix",
             "",
-            "Processed S3 path cannot be empty",
-        ),
-        (
-            "processed_s3_path",
-            "   ",
-            "Processed S3 path cannot be empty",
+            "Processed S3 prefix cannot be empty",
         ),
         (
             "redshift_iam_role",
@@ -333,221 +407,129 @@ def test_run_fails_when_copy_fails(
             "Redshift IAM role cannot be empty",
         ),
         (
-            "redshift_iam_role",
-            "   ",
-            "Redshift IAM role cannot be empty",
+            "aws_region",
+            "",
+            "AWS region cannot be empty",
         ),
     ],
 )
-def test_invalid_empty_configuration(
-    spark: MagicMock,
-    redshift_storage: MagicMock,
-    field_name: str,
-    field_value: str,
-    error_message: str,
+def test_invalid_configuration(
+    load_job: LoadJob,
+    attribute: str,
+    value: str,
+    message: str,
 ) -> None:
-    """Test rejection of empty configuration values."""
-
-    configuration = {
-        "redshift_schema": "analytics",
-        "redshift_table": "crypto_market",
-        "processed_spark_path": ("s3a://crypto-bucket/processed/"),
-        "processed_s3_path": ("s3://crypto-bucket/processed/"),
-        "redshift_iam_role": (
-            "arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"
-        ),
-    }
-
-    configuration[field_name] = field_value
+    setattr(load_job, attribute, value)
 
     with pytest.raises(
         ValueError,
-        match=error_message,
+        match=message,
     ):
-        LoadJob(
-            spark=spark,
-            redshift_storage=redshift_storage,
-            **configuration,
-        )
+        load_job._validate_configuration()
 
 
-def test_invalid_processed_spark_path(
-    spark: MagicMock,
-    redshift_storage: MagicMock,
+def test_invalid_iam_role_arn(
+    load_job: LoadJob,
 ) -> None:
-    """Test processed Spark path must use s3a://."""
+    load_job.redshift_iam_role = "invalid-role"
 
     with pytest.raises(
         ValueError,
-        match="Processed Spark path must start with 's3a://'",
+        match="valid IAM role ARN",
     ):
-        LoadJob(
-            spark=spark,
-            redshift_storage=redshift_storage,
-            redshift_schema="analytics",
-            redshift_table="crypto_market",
-            processed_spark_path="/local/processed/",
-            processed_s3_path=("s3://crypto-bucket/processed/"),
-            redshift_iam_role=(
-                "arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"
-            ),
-        )
+        load_job._validate_configuration()
 
 
-def test_invalid_processed_s3_path(
-    spark: MagicMock,
+# ------------------------------------------------------------------
+# run()
+# ------------------------------------------------------------------
+
+
+def test_run_executes_complete_load_flow(
+    load_job: LoadJob,
     redshift_storage: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test processed S3 path must use s3://."""
+    run_prefix = (
+        "processed_data/crypto_market/" "year=2026/month=09/day=30/" "time=090000/"
+    )
 
-    with pytest.raises(
-        ValueError,
-        match="Processed S3 path must start with 's3://'",
-    ):
-        LoadJob(
-            spark=spark,
-            redshift_storage=redshift_storage,
-            redshift_schema="analytics",
-            redshift_table="crypto_market",
-            processed_spark_path=("s3a://crypto-bucket/processed/"),
-            processed_s3_path="/local/processed/",
-            redshift_iam_role=(
-                "arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"
-            ),
-        )
+    schema = pa.schema(
+        [
+            pa.field("id", pa.string()),
+            pa.field("current_price", pa.float64()),
+        ]
+    )
+
+    monkeypatch.setattr(
+        load_job,
+        "_find_latest_processed_run",
+        lambda: run_prefix,
+    )
+
+    monkeypatch.setattr(
+        load_job,
+        "_read_processed_schema",
+        lambda prefix: schema,
+    )
+
+    monkeypatch.setattr(
+        load_job,
+        "_generate_create_table_sql",
+        lambda received_schema: "CREATE TABLE TEST;",
+    )
+
+    monkeypatch.setattr(
+        load_job,
+        "_generate_copy_sql",
+        lambda prefix: "COPY TEST;",
+    )
+
+    result = load_job.run()
+
+    assert isinstance(result, LoadResult)
+
+    assert result.schema_name == "public"
+    assert result.table_name == "crypto_market"
+
+    assert result.source_path == (
+        "s3://crypto-etl-prod-data-ap-south-1/"
+        "processed_data/crypto_market/"
+        "year=2026/month=09/day=30/"
+        "time=090000/"
+    )
+
+    assert result.success is True
+
+    assert redshift_storage.execute.call_count == 2
+
+    calls = redshift_storage.execute.call_args_list
+
+    assert calls[0].args[0] == "CREATE TABLE TEST;"
+    assert calls[1].args[0] == "COPY TEST;"
 
 
-def test_invalid_iam_role(
-    spark: MagicMock,
-    redshift_storage: MagicMock,
+# ------------------------------------------------------------------
+# _download_s3_object
+# ------------------------------------------------------------------
+
+
+def test_download_s3_object(
+    load_job: LoadJob,
+    tmp_path: Path,
 ) -> None:
-    """Test IAM role must be an AWS IAM role ARN."""
+    destination = tmp_path / "processed.parquet"
 
-    with pytest.raises(
-        ValueError,
-        match="Redshift IAM role must be a valid IAM role ARN",
-    ):
-        LoadJob(
-            spark=spark,
-            redshift_storage=redshift_storage,
-            redshift_schema="analytics",
-            redshift_table="crypto_market",
-            processed_spark_path=("s3a://crypto-bucket/processed/"),
-            processed_s3_path=("s3://crypto-bucket/processed/"),
-            redshift_iam_role="invalid-role",
-        )
-
-
-# ============================================================
-# FACTORY
-# ============================================================
-
-
-def test_create_load_job(
-    spark: MagicMock,
-    redshift_storage: MagicMock,
-) -> None:
-    """Test create_load_job factory."""
-
-    job = create_load_job(
-        spark=spark,
-        redshift_storage=redshift_storage,
-        redshift_schema="analytics",
-        redshift_table="crypto_market",
-        processed_spark_path=("s3a://crypto-bucket/processed/"),
-        processed_s3_path=("s3://crypto-bucket/processed/"),
-        redshift_iam_role=("arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"),
+    load_job._download_s3_object(
+        key="processed_data/test.parquet",
+        destination=destination,
     )
 
-    assert isinstance(job, LoadJob)
-    assert job.redshift_schema == "analytics"
-    assert job.redshift_table == "crypto_market"
-    assert job.processed_spark_path == "s3a://crypto-bucket/processed/"
-    assert job.processed_s3_path == "s3://crypto-bucket/processed/"
-
-
-# ============================================================
-# RUN LOAD JOB
-# ============================================================
-
-
-def test_run_load_job() -> None:
-    """Test top-level run_load_job orchestration."""
-
-    mock_spark = MagicMock()
-    mock_storage = MagicMock()
-
-    expected_result = LoadResult(
-        schema_name="analytics",
-        table_name="crypto_market",
-        source_path=("s3://crypto-bucket/processed/"),
-        success=True,
+    cast(
+        MagicMock,
+        load_job._s3_client.download_file,
+    ).assert_called_once_with(
+        "crypto-etl-prod-data-ap-south-1",
+        "processed_data/test.parquet",
+        str(destination),
     )
-
-    mock_job = MagicMock()
-    mock_job.run.return_value = expected_result
-
-    config = {
-        "aws": {
-            "region": "ap-south-1",
-        },
-        "s3": {
-            "bucket": "crypto-bucket",
-            "processed_prefix": "processed/",
-        },
-        "redshift": {
-            "host": "example.redshift.amazonaws.com",
-            "port": 5439,
-            "database": "dev",
-            "workgroup": "crypto-workgroup",
-            "schema": "analytics",
-            "table": "crypto_market",
-            "iam_role": ("arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"),
-        },
-    }
-
-    with (
-        patch(
-            "src.load.load_job.CONFIG",
-            config,
-        ),
-        patch(
-            "src.load.load_job.SparkSessionFactory.create",
-            return_value=mock_spark,
-        ) as mock_create_spark,
-        patch(
-            "src.load.load_job.RedshiftStorage",
-            return_value=mock_storage,
-        ) as mock_storage_class,
-        patch(
-            "src.load.load_job.create_load_job",
-            return_value=mock_job,
-        ) as mock_create_job,
-    ):
-        result = run_load_job()
-
-    assert result == expected_result
-
-    mock_create_spark.assert_called_once()
-
-    mock_storage_class.assert_called_once_with(
-        host="example.redshift.amazonaws.com",
-        port=5439,
-        database="dev",
-        aws_region="ap-south-1",
-        workgroup="crypto-workgroup",
-    )
-
-    mock_create_job.assert_called_once_with(
-        spark=mock_spark,
-        redshift_storage=mock_storage,
-        redshift_schema="analytics",
-        redshift_table="crypto_market",
-        processed_spark_path=("s3a://crypto-bucket/processed/"),
-        processed_s3_path=("s3://crypto-bucket/processed/"),
-        redshift_iam_role=("arn:aws:iam::123456789012:role/" "CryptoETL-Redshift-Role"),
-    )
-
-    mock_job.run.assert_called_once_with()
-    mock_storage.close.assert_called_once_with()
-    mock_spark.stop.assert_called_once_with()

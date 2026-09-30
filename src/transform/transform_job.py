@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any
+from typing import Any, cast
 
 import boto3
 from pyspark.sql import DataFrame, SparkSession
@@ -341,7 +341,7 @@ class TransformJob:
                 key = obj["Key"]
 
                 if key.endswith(".ndjson"):
-                    ndjson_objects.append(obj)
+                    ndjson_objects.append(cast(dict[str, Any], obj))
 
         if not ndjson_objects:
             raise ValueError(

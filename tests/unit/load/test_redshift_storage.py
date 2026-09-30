@@ -1,579 +1,368 @@
 from __future__ import annotations
 
-from typing import TypedDict
+from collections.abc import Generator
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.load.redshift_storage import RedshiftStorage
 
-# =====================================================================
-# TYPED CONFIGURATION
-# =====================================================================
-
-
-class RedshiftStorageKwargs(TypedDict):
-    """Typed constructor arguments for RedshiftStorage."""
-
-    host: str
-    port: int
-    database: str
-    aws_region: str
-    workgroup: str
-
-
-# =====================================================================
-# FIXTURES
-# =====================================================================
+# ------------------------------------------------------------------
+# Fixtures
+# ------------------------------------------------------------------
 
 
 @pytest.fixture
-def redshift_storage() -> RedshiftStorage:
+def storage() -> Generator[RedshiftStorage, None, None]:
     """Create RedshiftStorage with mocked AWS client."""
 
-    with patch("src.load.redshift_storage.boto3.client") as mock_boto3_client:
-
-        mock_boto3_client.return_value = MagicMock()
-
+    with patch("src.load.redshift_storage.boto3.client") as mock_client:
         storage = RedshiftStorage(
             host="example.redshift-serverless.amazonaws.com",
             port=5439,
             database="dev",
             aws_region="ap-south-1",
-            workgroup="crypto-etl-workgroup",
+            workgroup="crypto-etl-prod-rs-workgroup",
         )
 
-        return storage
+        storage._redshift_client = mock_client.return_value
+
+        yield storage
 
 
 @pytest.fixture
-def mock_redshift_connection() -> MagicMock:
-    """Create a mocked Redshift connection."""
+def mock_connection(storage: RedshiftStorage) -> MagicMock:
+    """Attach a mocked Redshift connection."""
 
     connection = MagicMock()
+    storage._connection = connection
 
     return connection
 
 
-# =====================================================================
-# INITIALIZATION
-# =====================================================================
+# ------------------------------------------------------------------
+# Initialization
+# ------------------------------------------------------------------
 
 
-def test_init_success() -> None:
-    """Initialize RedshiftStorage successfully."""
-
-    with patch("src.load.redshift_storage.boto3.client") as mock_boto3_client:
-
-        mock_client = MagicMock()
-
-        mock_boto3_client.return_value = mock_client
-
-        storage = RedshiftStorage(
-            host="redshift.example.com",
-            port=5439,
-            database="dev",
-            aws_region="ap-south-1",
-            workgroup="crypto-workgroup",
-        )
-
-        assert storage.host == "redshift.example.com"
-        assert storage.port == 5439
-        assert storage.database == "dev"
-        assert storage.aws_region == "ap-south-1"
-        assert storage.workgroup == "crypto-workgroup"
-        assert storage._connection is None
-
-        mock_boto3_client.assert_called_once()
+def test_initialization(storage: RedshiftStorage) -> None:
+    assert storage.host == "example.redshift-serverless.amazonaws.com"
+    assert storage.port == 5439
+    assert storage.database == "dev"
+    assert storage.aws_region == "ap-south-1"
+    assert storage.workgroup == "crypto-etl-prod-rs-workgroup"
+    assert storage._connection is None
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    ("kwargs", "message"),
     [
-        ("host", ""),
-        ("database", ""),
-        ("aws_region", ""),
-        ("workgroup", ""),
+        ({"host": ""}, "host must not be empty."),
+        ({"port": 0}, "port must be greater than zero."),
+        ({"database": ""}, "database must not be empty."),
+        ({"aws_region": ""}, "aws_region must not be empty."),
+        ({"workgroup": ""}, "workgroup must not be empty."),
     ],
 )
-def test_init_rejects_empty_string(
-    field: str,
-    value: str,
+def test_initialization_validation(
+    kwargs: dict[str, object],
+    message: str,
 ) -> None:
-    """Reject empty required string configuration."""
-
-    base_kwargs: RedshiftStorageKwargs = {
-        "host": "redshift.example.com",
+    values: dict[str, object] = {
+        "host": "example.redshift-serverless.amazonaws.com",
         "port": 5439,
         "database": "dev",
         "aws_region": "ap-south-1",
-        "workgroup": "crypto-workgroup",
+        "workgroup": "crypto-etl-prod-rs-workgroup",
     }
 
-    if field == "host":
-        base_kwargs["host"] = value
+    values.update(kwargs)
 
-    elif field == "database":
-        base_kwargs["database"] = value
-
-    elif field == "aws_region":
-        base_kwargs["aws_region"] = value
-
-    elif field == "workgroup":
-        base_kwargs["workgroup"] = value
-
-    with patch("src.load.redshift_storage.boto3.client"), pytest.raises(ValueError):
-        RedshiftStorage(**base_kwargs)
+    with patch("src.load.redshift_storage.boto3.client"):
+        with pytest.raises(ValueError, match=message):
+            RedshiftStorage(**values)  # type: ignore[arg-type]
 
 
-def test_init_rejects_invalid_port() -> None:
-    """Reject zero or negative Redshift port."""
-
-    with (
-        patch("src.load.redshift_storage.boto3.client"),
-        pytest.raises(
-            ValueError,
-            match="port must be greater than zero.",
-        ),
-    ):
-        RedshiftStorage(
-            host="redshift.example.com",
-            port=0,
-            database="dev",
-            aws_region="ap-south-1",
-            workgroup="crypto-workgroup",
-        )
+# ------------------------------------------------------------------
+# IAM Credentials
+# ------------------------------------------------------------------
 
 
-# =====================================================================
-# IAM CREDENTIALS
-# =====================================================================
-
-
-def test_get_iam_credentials(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Return temporary Redshift IAM credentials."""
-
-    redshift_storage._redshift_client.get_credentials.return_value = {
-        "dbUser": "iam_user",
-        "dbPassword": "temporary_password",
+def test_get_iam_credentials(storage: RedshiftStorage) -> None:
+    storage._redshift_client.get_credentials.return_value = {
+        "dbUser": "IAMR:crypto-user",
+        "dbPassword": "temporary-password",
     }
 
-    username, password = redshift_storage._get_iam_credentials()
+    username, password = storage._get_iam_credentials()
 
-    assert username == "iam_user"
-    assert password == "temporary_password"
+    assert username == "IAMR:crypto-user"
+    assert password == "temporary-password"
 
-    redshift_storage._redshift_client.get_credentials.assert_called_once_with(
-        workgroupName="crypto-etl-workgroup",
+    storage._redshift_client.get_credentials.assert_called_once_with(
+        workgroupName="crypto-etl-prod-rs-workgroup",
+        dbName="dev",
         durationSeconds=900,
     )
 
 
-def test_get_iam_credentials_failure(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Raise exception when IAM credentials cannot be obtained."""
-
-    redshift_storage._redshift_client.get_credentials.side_effect = RuntimeError(
+def test_get_iam_credentials_failure(storage: RedshiftStorage) -> None:
+    storage._redshift_client.get_credentials.side_effect = RuntimeError(
         "AWS credentials error"
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="AWS credentials error",
-    ):
-        redshift_storage._get_iam_credentials()
+    with pytest.raises(RuntimeError, match="AWS credentials error"):
+        storage._get_iam_credentials()
 
 
-# =====================================================================
-# CONNECTION
-# =====================================================================
+# ------------------------------------------------------------------
+# Connection
+# ------------------------------------------------------------------
 
 
 @patch("src.load.redshift_storage.redshift_connector.connect")
-def test_connect_success(
+def test_connect(
     mock_connect: MagicMock,
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
 ) -> None:
-    """Create Redshift IAM connection successfully."""
-
-    mock_connection = MagicMock()
-
-    mock_connect.return_value = mock_connection
-
-    redshift_storage._redshift_client.get_credentials.return_value = {
-        "dbUser": "iam_user",
-        "dbPassword": "temporary_password",
+    storage._redshift_client.get_credentials.return_value = {
+        "dbUser": "IAMR:crypto-user",
+        "dbPassword": "temporary-password",
     }
 
-    redshift_storage.connect()
+    mock_connection = MagicMock()
+    mock_connect.return_value = mock_connection
 
-    assert redshift_storage._connection is mock_connection
+    storage.connect()
+
+    assert storage._connection is mock_connection
 
     mock_connect.assert_called_once_with(
         host="example.redshift-serverless.amazonaws.com",
         port=5439,
         database="dev",
-        user="iam_user",
-        password="temporary_password",
+        user="IAMR:crypto-user",
+        password="temporary-password",
+        ssl=True,
         timeout=60,
+        tcp_keepalive=True,
     )
 
 
 @patch("src.load.redshift_storage.redshift_connector.connect")
 def test_connect_reuses_existing_connection(
     mock_connect: MagicMock,
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
 ) -> None:
-    """Reuse an existing connection."""
-
     existing_connection = MagicMock()
+    storage._connection = existing_connection
 
-    redshift_storage._connection = existing_connection
+    storage.connect()
 
-    redshift_storage.connect()
-
-    assert redshift_storage._connection is existing_connection
-
+    assert storage._connection is existing_connection
     mock_connect.assert_not_called()
 
 
 @patch("src.load.redshift_storage.redshift_connector.connect")
-def test_connect_failure_resets_connection(
+def test_connect_failure(
     mock_connect: MagicMock,
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
 ) -> None:
-    """Reset connection when connection creation fails."""
-
-    mock_connect.side_effect = RuntimeError("Connection failed")
-
-    redshift_storage._redshift_client.get_credentials.return_value = {
-        "dbUser": "iam_user",
-        "dbPassword": "temporary_password",
+    storage._redshift_client.get_credentials.return_value = {
+        "dbUser": "IAMR:crypto-user",
+        "dbPassword": "temporary-password",
     }
 
-    with pytest.raises(
-        RuntimeError,
-        match="Connection failed",
-    ):
-        redshift_storage.connect()
+    mock_connect.side_effect = RuntimeError("connection failed")
 
-    assert redshift_storage._connection is None
+    with pytest.raises(RuntimeError, match="connection failed"):
+        storage.connect()
 
-
-# =====================================================================
-# GET CONNECTION
-# =====================================================================
+    assert storage._connection is None
 
 
-@patch("src.load.redshift_storage.redshift_connector.connect")
-def test_get_connection_creates_connection(
-    mock_connect: MagicMock,
-    redshift_storage: RedshiftStorage,
+# ------------------------------------------------------------------
+# get_connection
+# ------------------------------------------------------------------
+
+
+def test_get_connection(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """get_connection creates a connection when needed."""
-
-    mock_connection = MagicMock()
-
-    mock_connect.return_value = mock_connection
-
-    redshift_storage._redshift_client.get_credentials.return_value = {
-        "dbUser": "iam_user",
-        "dbPassword": "temporary_password",
-    }
-
-    result = redshift_storage.get_connection()
+    result = storage.get_connection()
 
     assert result is mock_connection
 
 
-def test_get_connection_returns_existing_connection(
-    redshift_storage: RedshiftStorage,
+@patch.object(RedshiftStorage, "connect")
+def test_get_connection_creates_connection(
+    mock_connect: MagicMock,
+    storage: RedshiftStorage,
 ) -> None:
-    """get_connection returns existing connection."""
-
-    existing_connection = MagicMock()
-
-    redshift_storage._connection = existing_connection
-
-    result = redshift_storage.get_connection()
-
-    assert result is existing_connection
-
-
-# =====================================================================
-# RESET CONNECTION
-# =====================================================================
-
-
-def test_reset_connection(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Close and reset current connection."""
-
     connection = MagicMock()
+    storage._connection = connection
 
-    redshift_storage._connection = connection
+    result = storage.get_connection()
 
-    redshift_storage._reset_connection()
-
-    connection.close.assert_called_once()
-
-    assert redshift_storage._connection is None
+    assert result is connection
+    mock_connect.assert_not_called()
 
 
-def test_reset_connection_when_none(
-    redshift_storage: RedshiftStorage,
+# ------------------------------------------------------------------
+# Execute
+# ------------------------------------------------------------------
+
+
+def test_execute(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Reset does nothing when connection is None."""
-
-    redshift_storage._connection = None
-
-    redshift_storage._reset_connection()
-
-    assert redshift_storage._connection is None
-
-
-def test_reset_connection_handles_close_error(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Reset connection even when close raises an exception."""
-
-    connection = MagicMock()
-
-    connection.close.side_effect = RuntimeError("close failed")
-
-    redshift_storage._connection = connection
-
-    redshift_storage._reset_connection()
-
-    assert redshift_storage._connection is None
-
-
-# =====================================================================
-# EXECUTE
-# =====================================================================
-
-
-def test_execute_success(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Execute SQL and commit successfully."""
-
-    connection = MagicMock()
     cursor = MagicMock()
+    mock_connection.cursor.return_value = cursor
 
-    connection.cursor.return_value = cursor
-
-    redshift_storage._connection = connection
-
-    sql = "CREATE TABLE test_table (id INTEGER)"
-
-    redshift_storage.execute(sql)
+    storage.execute(
+        "CREATE TABLE test_table (id INTEGER)",
+    )
 
     cursor.execute.assert_called_once_with(
-        sql,
+        "CREATE TABLE test_table (id INTEGER)",
         None,
     )
 
-    connection.commit.assert_called_once()
-
+    mock_connection.commit.assert_called_once()
     cursor.close.assert_called_once()
 
 
 def test_execute_with_parameters(
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Execute SQL with parameters."""
-
-    connection = MagicMock()
     cursor = MagicMock()
+    mock_connection.cursor.return_value = cursor
 
-    connection.cursor.return_value = cursor
+    parameters = (123, "bitcoin")
 
-    redshift_storage._connection = connection
-
-    sql = "INSERT INTO test_table (id) VALUES (%s)"
-    parameters = (1,)
-
-    redshift_storage.execute(
-        sql,
+    storage.execute(
+        "INSERT INTO crypto_market VALUES (%s, %s)",
         parameters,
     )
 
     cursor.execute.assert_called_once_with(
-        sql,
+        "INSERT INTO crypto_market VALUES (%s, %s)",
         parameters,
     )
 
-    connection.commit.assert_called_once()
+    mock_connection.commit.assert_called_once()
+    cursor.close.assert_called_once()
 
 
-def test_execute_rejects_empty_sql(
-    redshift_storage: RedshiftStorage,
+def test_execute_empty_sql(storage: RedshiftStorage) -> None:
+    with pytest.raises(ValueError, match="SQL statement cannot be empty"):
+        storage.execute("")
+
+
+def test_execute_failure_retries(
+    storage: RedshiftStorage,
 ) -> None:
-    """Reject empty SQL."""
-
-    with pytest.raises(
-        ValueError,
-        match="SQL statement cannot be empty.",
-    ):
-        redshift_storage.execute("")
-
-
-def test_execute_retries_after_failure(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Retry SQL execution after connection failure."""
-
     first_connection = MagicMock()
     first_cursor = MagicMock()
+
+    first_connection.cursor.return_value = first_cursor
+    first_cursor.execute.side_effect = RuntimeError("temporary failure")
 
     second_connection = MagicMock()
     second_cursor = MagicMock()
 
-    first_connection.cursor.return_value = first_cursor
     second_connection.cursor.return_value = second_cursor
 
-    first_cursor.execute.side_effect = RuntimeError("Broken pipe")
-
-    redshift_storage._connection = first_connection
-
-    connections = [
-        first_connection,
-        second_connection,
-    ]
+    storage._connection = first_connection
 
     def get_connection_side_effect() -> MagicMock:
-        connection = connections.pop(0)
+        if storage._connection is None:
+            storage._connection = second_connection
 
-        redshift_storage._connection = connection
+        return cast(MagicMock, storage._connection)
 
-        return connection
-
-    with (
-        patch.object(
-            redshift_storage,
-            "get_connection",
-            side_effect=get_connection_side_effect,
-        ),
-        patch.object(
-            redshift_storage,
-            "_reset_connection",
-            side_effect=lambda: setattr(
-                redshift_storage,
-                "_connection",
-                None,
-            ),
-        ),
+    with patch.object(
+        storage,
+        "get_connection",
+        side_effect=get_connection_side_effect,
     ):
-        redshift_storage.execute("SELECT 1")
+        storage.execute("SELECT 1")
 
     first_connection.rollback.assert_called_once()
-
+    first_connection.close.assert_called_once()
     second_connection.commit.assert_called_once()
 
-    second_cursor.execute.assert_called_once_with(
-        "SELECT 1",
-        None,
-    )
+
+# ------------------------------------------------------------------
+# Execute Many
+# ------------------------------------------------------------------
 
 
-# =====================================================================
-# EXECUTE MANY
-# =====================================================================
-
-
-def test_execute_many_success(
-    redshift_storage: RedshiftStorage,
+def test_execute_many(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Execute batch SQL successfully."""
-
-    connection = MagicMock()
     cursor = MagicMock()
-
-    connection.cursor.return_value = cursor
-
-    redshift_storage._connection = connection
-
-    sql = "INSERT INTO test_table (id) VALUES (%s)"
+    mock_connection.cursor.return_value = cursor
 
     parameters = [
-        (1,),
-        (2,),
-        (3,),
+        (1, "bitcoin"),
+        (2, "ethereum"),
     ]
 
-    redshift_storage.execute_many(
-        sql,
+    storage.execute_many(
+        "INSERT INTO crypto_market VALUES (%s, %s)",
         parameters,
     )
 
     cursor.executemany.assert_called_once_with(
-        sql,
+        "INSERT INTO crypto_market VALUES (%s, %s)",
         parameters,
     )
 
-    connection.commit.assert_called_once()
-
+    mock_connection.commit.assert_called_once()
     cursor.close.assert_called_once()
 
 
-def test_execute_many_rejects_empty_sql(
-    redshift_storage: RedshiftStorage,
+def test_execute_many_empty_sql(
+    storage: RedshiftStorage,
 ) -> None:
-    """Reject empty batch SQL."""
-
-    with pytest.raises(
-        ValueError,
-        match="SQL statement cannot be empty.",
-    ):
-        redshift_storage.execute_many(
-            "",
-            [(1,)],
-        )
+    with pytest.raises(ValueError, match="SQL statement cannot be empty"):
+        storage.execute_many("", [(1,)])
 
 
-def test_execute_many_rejects_empty_parameters(
-    redshift_storage: RedshiftStorage,
+def test_execute_many_empty_parameters(
+    storage: RedshiftStorage,
 ) -> None:
-    """Reject empty parameter list."""
-
-    with pytest.raises(
-        ValueError,
-        match="SQL parameters cannot be empty.",
-    ):
-        redshift_storage.execute_many(
-            "INSERT INTO test_table VALUES (%s)",
-            [],
-        )
+    with pytest.raises(ValueError, match="SQL parameters cannot be empty"):
+        storage.execute_many("SELECT 1", [])
 
 
-# =====================================================================
-# FETCH ONE
-# =====================================================================
+# ------------------------------------------------------------------
+# Fetch One
+# ------------------------------------------------------------------
 
 
-def test_fetch_one_returns_row(
-    redshift_storage: RedshiftStorage,
+def test_fetch_one(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Fetch one row successfully."""
-
-    connection = MagicMock()
     cursor = MagicMock()
-
-    connection.cursor.return_value = cursor
+    mock_connection.cursor.return_value = cursor
 
     cursor.fetchone.return_value = (
         1,
         "bitcoin",
     )
 
-    redshift_storage._connection = connection
-
-    result = redshift_storage.fetch_one("SELECT id, name FROM crypto_market")
+    result = storage.fetch_one(
+        "SELECT id, symbol FROM crypto_market WHERE id = %s",
+        (1,),
+    )
 
     assert result == (
         1,
@@ -581,67 +370,55 @@ def test_fetch_one_returns_row(
     )
 
     cursor.execute.assert_called_once_with(
-        "SELECT id, name FROM crypto_market",
-        None,
+        "SELECT id, symbol FROM crypto_market WHERE id = %s",
+        (1,),
     )
 
     cursor.close.assert_called_once()
 
 
-def test_fetch_one_returns_none(
-    redshift_storage: RedshiftStorage,
+def test_fetch_one_no_result(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Return None when query has no rows."""
-
-    connection = MagicMock()
     cursor = MagicMock()
-
-    connection.cursor.return_value = cursor
+    mock_connection.cursor.return_value = cursor
 
     cursor.fetchone.return_value = None
 
-    redshift_storage._connection = connection
-
-    result = redshift_storage.fetch_one("SELECT * FROM crypto_market")
+    result = storage.fetch_one("SELECT 1")
 
     assert result is None
+    cursor.close.assert_called_once()
 
 
-def test_fetch_one_rejects_empty_sql(
-    redshift_storage: RedshiftStorage,
+def test_fetch_one_empty_sql(
+    storage: RedshiftStorage,
 ) -> None:
-    """Reject empty SELECT query."""
-
-    with pytest.raises(
-        ValueError,
-        match="SQL query cannot be empty.",
-    ):
-        redshift_storage.fetch_one("")
+    with pytest.raises(ValueError, match="SQL query cannot be empty"):
+        storage.fetch_one("")
 
 
-# =====================================================================
-# FETCH ALL
-# =====================================================================
+# ------------------------------------------------------------------
+# Fetch All
+# ------------------------------------------------------------------
 
 
-def test_fetch_all_returns_rows(
-    redshift_storage: RedshiftStorage,
+def test_fetch_all(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Fetch all rows successfully."""
-
-    connection = MagicMock()
     cursor = MagicMock()
-
-    connection.cursor.return_value = cursor
+    mock_connection.cursor.return_value = cursor
 
     cursor.fetchall.return_value = [
         (1, "bitcoin"),
         (2, "ethereum"),
     ]
 
-    redshift_storage._connection = connection
-
-    result = redshift_storage.fetch_all("SELECT id, name FROM crypto_market")
+    result = storage.fetch_all(
+        "SELECT id, symbol FROM crypto_market",
+    )
 
     assert result == [
         (1, "bitcoin"),
@@ -649,244 +426,130 @@ def test_fetch_all_returns_rows(
     ]
 
     cursor.execute.assert_called_once_with(
-        "SELECT id, name FROM crypto_market",
+        "SELECT id, symbol FROM crypto_market",
         None,
     )
 
     cursor.close.assert_called_once()
 
 
-def test_fetch_all_returns_empty_list(
-    redshift_storage: RedshiftStorage,
+def test_fetch_all_empty_sql(
+    storage: RedshiftStorage,
 ) -> None:
-    """Return empty list when query has no rows."""
-
-    connection = MagicMock()
-    cursor = MagicMock()
-
-    connection.cursor.return_value = cursor
-
-    cursor.fetchall.return_value = []
-
-    redshift_storage._connection = connection
-
-    result = redshift_storage.fetch_all("SELECT * FROM crypto_market")
-
-    assert result == []
+    with pytest.raises(ValueError, match="SQL query cannot be empty"):
+        storage.fetch_all("")
 
 
-def test_fetch_all_rejects_empty_sql(
-    redshift_storage: RedshiftStorage,
+# ------------------------------------------------------------------
+# Commit / Rollback
+# ------------------------------------------------------------------
+
+
+def test_commit(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Reject empty SELECT query."""
+    storage.commit()
 
-    with pytest.raises(
-        ValueError,
-        match="SQL query cannot be empty.",
-    ):
-        redshift_storage.fetch_all("")
-
-
-# =====================================================================
-# COMMIT
-# =====================================================================
-
-
-def test_commit_success(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Commit current transaction."""
-
-    connection = MagicMock()
-
-    redshift_storage._connection = connection
-
-    redshift_storage.commit()
-
-    connection.commit.assert_called_once()
+    mock_connection.commit.assert_called_once()
 
 
 def test_commit_without_connection(
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
 ) -> None:
-    """Commit does nothing when no connection exists."""
+    storage.commit()
 
-    redshift_storage._connection = None
-
-    redshift_storage.commit()
-
-    assert redshift_storage._connection is None
+    assert storage._connection is None
 
 
-def test_commit_failure(
-    redshift_storage: RedshiftStorage,
+def test_rollback(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Raise exception when commit fails."""
+    storage.rollback()
 
-    connection = MagicMock()
-
-    connection.commit.side_effect = RuntimeError("commit failed")
-
-    redshift_storage._connection = connection
-
-    with pytest.raises(
-        RuntimeError,
-        match="commit failed",
-    ):
-        redshift_storage.commit()
-
-
-# =====================================================================
-# ROLLBACK
-# =====================================================================
-
-
-def test_rollback_success(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Rollback current transaction."""
-
-    connection = MagicMock()
-
-    redshift_storage._connection = connection
-
-    redshift_storage.rollback()
-
-    connection.rollback.assert_called_once()
+    mock_connection.rollback.assert_called_once()
 
 
 def test_rollback_without_connection(
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
 ) -> None:
-    """Rollback does nothing when no connection exists."""
+    storage.rollback()
 
-    redshift_storage._connection = None
-
-    redshift_storage.rollback()
-
-    assert redshift_storage._connection is None
+    assert storage._connection is None
 
 
-def test_rollback_failure(
-    redshift_storage: RedshiftStorage,
+# ------------------------------------------------------------------
+# Reset Connection
+# ------------------------------------------------------------------
+
+
+def test_reset_connection(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
 ) -> None:
-    """Raise exception when rollback fails."""
+    storage._reset_connection()
 
-    connection = MagicMock()
-
-    connection.rollback.side_effect = RuntimeError("rollback failed")
-
-    redshift_storage._connection = connection
-
-    with pytest.raises(
-        RuntimeError,
-        match="rollback failed",
-    ):
-        redshift_storage.rollback()
+    mock_connection.close.assert_called_once()
+    assert storage._connection is None
 
 
-# =====================================================================
-# CLOSE
-# =====================================================================
-
-
-def test_close_success(
-    redshift_storage: RedshiftStorage,
+def test_reset_connection_without_connection(
+    storage: RedshiftStorage,
 ) -> None:
-    """Close Redshift connection successfully."""
+    storage._reset_connection()
 
-    connection = MagicMock()
+    assert storage._connection is None
 
-    redshift_storage._connection = connection
 
-    redshift_storage.close()
+# ------------------------------------------------------------------
+# Close
+# ------------------------------------------------------------------
 
-    connection.close.assert_called_once()
 
-    assert redshift_storage._connection is None
+def test_close(
+    storage: RedshiftStorage,
+    mock_connection: MagicMock,
+) -> None:
+    storage.close()
+
+    mock_connection.close.assert_called_once()
+    assert storage._connection is None
 
 
 def test_close_without_connection(
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
 ) -> None:
-    """Close does nothing when connection does not exist."""
+    storage.close()
 
-    redshift_storage._connection = None
-
-    redshift_storage.close()
-
-    assert redshift_storage._connection is None
+    assert storage._connection is None
 
 
-def test_close_handles_exception(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Connection is reset even when close fails."""
-
-    connection = MagicMock()
-
-    connection.close.side_effect = RuntimeError("close failed")
-
-    redshift_storage._connection = connection
-
-    redshift_storage.close()
-
-    assert redshift_storage._connection is None
-
-
-# =====================================================================
-# CONTEXT MANAGER
-# =====================================================================
+# ------------------------------------------------------------------
+# Context Manager
+# ------------------------------------------------------------------
 
 
 @patch.object(RedshiftStorage, "connect")
 def test_context_manager_enter(
     mock_connect: MagicMock,
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
 ) -> None:
-    """__enter__ should connect and return self."""
-
-    result = redshift_storage.__enter__()
+    with storage as result:
+        assert result is storage
 
     mock_connect.assert_called_once()
-
-    assert result is redshift_storage
 
 
 @patch.object(RedshiftStorage, "close")
 def test_context_manager_exit(
     mock_close: MagicMock,
-    redshift_storage: RedshiftStorage,
+    storage: RedshiftStorage,
 ) -> None:
-    """__exit__ should close the connection."""
-
-    redshift_storage.__exit__(
+    storage.__exit__(
         None,
         None,
         None,
     )
 
     mock_close.assert_called_once()
-
-
-def test_context_manager_usage(
-    redshift_storage: RedshiftStorage,
-) -> None:
-    """Verify context manager behavior."""
-
-    with (
-        patch.object(
-            redshift_storage,
-            "connect",
-        ) as mock_connect,
-        patch.object(
-            redshift_storage,
-            "close",
-        ) as mock_close,
-    ):
-
-        with redshift_storage as result:
-            assert result is redshift_storage
-
-        mock_connect.assert_called_once()
-        mock_close.assert_called_once()

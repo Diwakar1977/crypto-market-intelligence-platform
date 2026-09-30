@@ -16,6 +16,7 @@ PyYAML
 types-PyYAML
 
 pytest
+moto[s3]
 pytest-cov
 ruff
 black

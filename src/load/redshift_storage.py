@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from types import TracebackType
 from typing import Any, Self
 
@@ -22,9 +24,12 @@ class RedshiftStorage:
     # ------------------------------------------------------------------
 
     REDSHIFT_CONNECT_TIMEOUT = 60
+
     AWS_CONNECT_TIMEOUT = 10
     AWS_READ_TIMEOUT = 60
+
     IAM_CREDENTIAL_DURATION = 900
+
     MAX_SQL_ATTEMPTS = 2
 
     # ------------------------------------------------------------------
@@ -90,20 +95,23 @@ class RedshiftStorage:
 
     def _get_iam_credentials(self) -> tuple[str, str]:
         """
-        Obtain temporary Redshift IAM database credentials.
+        Obtain temporary Redshift Serverless IAM database credentials.
 
         Returns:
-            Tuple containing database username and password.
+            Tuple containing database username and temporary password.
         """
 
         try:
             logger.info(
-                "Requesting temporary Redshift IAM credentials " "for workgroup: %s",
+                "Requesting temporary Redshift IAM credentials "
+                "for workgroup=%s database=%s",
                 self.workgroup,
+                self.database,
             )
 
             credentials = self._redshift_client.get_credentials(
                 workgroupName=self.workgroup,
+                dbName=self.database,
                 durationSeconds=self.IAM_CREDENTIAL_DURATION,
             )
 
@@ -148,7 +156,9 @@ class RedshiftStorage:
                 database=self.database,
                 user=username,
                 password=password,
+                ssl=True,
                 timeout=self.REDSHIFT_CONNECT_TIMEOUT,
+                tcp_keepalive=True,
             )
 
             logger.info(
@@ -161,6 +171,7 @@ class RedshiftStorage:
             logger.exception(
                 "Failed to connect to Redshift Serverless " "using IAM authentication."
             )
+
             raise
 
     def get_connection(self) -> Connection:
@@ -182,7 +193,7 @@ class RedshiftStorage:
         """
         Close and reset the current Redshift connection.
 
-        This is used when the socket becomes stale, times out,
+        Used when the connection becomes stale, times out,
         or the server closes the connection.
         """
 
@@ -216,7 +227,7 @@ class RedshiftStorage:
         Execute one SQL statement and commit the transaction.
 
         The statement is retried once if the Redshift connection
-        fails or times out.
+        fails.
         """
 
         if not sql.strip():
@@ -244,7 +255,7 @@ class RedshiftStorage:
 
                 connection.commit()
 
-                logger.info("Redshift SQL statement " "executed successfully.")
+                logger.info("Redshift SQL statement executed successfully.")
 
                 return
 
@@ -267,10 +278,7 @@ class RedshiftStorage:
                     )
 
                 if attempt < self.MAX_SQL_ATTEMPTS:
-                    logger.warning(
-                        "Redshift SQL execution failed. "
-                        "Resetting connection before retry."
-                    )
+                    logger.warning("Resetting Redshift connection before retry.")
 
                     self._reset_connection()
 
@@ -361,10 +369,7 @@ class RedshiftStorage:
                     )
 
                 if attempt < self.MAX_SQL_ATTEMPTS:
-                    logger.warning(
-                        "Batch SQL execution failed. "
-                        "Resetting connection before retry."
-                    )
+                    logger.warning("Resetting Redshift connection before retry.")
 
                     self._reset_connection()
 
@@ -424,7 +429,7 @@ class RedshiftStorage:
 
                 result = cursor.fetchone()
 
-                logger.info("Redshift SELECT query " "completed successfully.")
+                logger.info("Redshift SELECT query completed successfully.")
 
                 return tuple(result) if result is not None else None
 
