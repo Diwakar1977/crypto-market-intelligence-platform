@@ -150,50 +150,82 @@ def add_transform_step() -> EmrAddStepsOperator:
                 "-c",
                 (
                     "set -euo pipefail; "
-                    # Download Python dependencies from S3.
+                    # --------------------------------------------------
+                    # 1. Download EMR Python requirements
+                    # --------------------------------------------------
                     f"aws s3 cp "
-                    f"s3://{S3_BUCKET}/requirements.txt /tmp/requirements.txt; "
-                    # Set EMR runtime environment.
+                    f"s3://{S3_BUCKET}/requirements.txt "
+                    "/tmp/requirements.txt; "
+                    # --------------------------------------------------
+                    # 2. Set EMR configuration
+                    # --------------------------------------------------
                     "export ENV=emr; "
-                    # Install Python dependencies.
+                    # --------------------------------------------------
+                    # 3. Create temporary Python dependency directory
+                    # --------------------------------------------------
                     "rm -rf /tmp/python_deps; "
                     "mkdir -p /tmp/python_deps; "
-                    "/usr/bin/python3.11 -m pip install --target /tmp/python_deps "
+                    # --------------------------------------------------
+                    # 4. Install Python dependencies
+                    # --------------------------------------------------
+                    "/usr/bin/python3.11 -m pip install "
+                    "--target /tmp/python_deps "
                     "-r /tmp/requirements.txt; "
-                    # Create a ZIP containing the src package.
-                    "rm -f /tmp/src.zip; "
-                    "cd /tmp; "
-                    f"aws s3 cp s3://{S3_BUCKET}/dags/src/ /tmp/src/ --recursive; "
-                    "cd /tmp; "
-                    "zip -r /tmp/src.zip src; "
-                    # Create dependencies.zip.
+                    # --------------------------------------------------
+                    # 5. Remove boto3 and botocore from dependency ZIP
+                    #
+                    # EMR already provides the AWS SDK.
+                    # We do not package boto3/botocore inside
+                    # dependencies.zip because botocore package-data
+                    # cannot be loaded correctly through this ZIP.
+                    # --------------------------------------------------
+                    "rm -rf /tmp/python_deps/boto3; "
+                    "rm -rf /tmp/python_deps/boto3-*.dist-info; "
+                    "rm -rf /tmp/python_deps/botocore; "
+                    "rm -rf /tmp/python_deps/botocore-*.dist-info; "
+                    # --------------------------------------------------
+                    # 6. Create dependencies.zip
+                    # --------------------------------------------------
                     "rm -f /tmp/dependencies.zip; "
                     "cd /tmp/python_deps; "
                     "zip -r /tmp/dependencies.zip .; "
-                    # Debug botocore package and endpoint metadata.
-                    'echo "===== BOTOCore DEBUG ====="; '
-                    "python3.11 -c "
-                    '"import botocore; '
-                    "print('VERSION:', botocore.__version__); "
-                    "print('PATH:', botocore.__path__[0])\"; "
-                    'echo "===== ENDPOINTS IN PACKAGE ====="; '
-                    "find /tmp/python_deps/botocore/data "
-                    '-name "endpoints.json" '
-                    '-o -name "partitions.json"; '
-                    'echo "===== ENDPOINTS IN ZIP ====="; '
+                    # --------------------------------------------------
+                    # 7. DEBUG: Verify boto3/botocore were removed
+                    # --------------------------------------------------
+                    'echo "===== DEPENDENCY ZIP CHECK ====="; '
+                    'echo "boto3 in ZIP:"; '
                     "unzip -l /tmp/dependencies.zip "
-                    "| grep -E "
-                    '"botocore/data/(endpoints.json|partitions.json)"; '
-                    'echo "===== ZIP SIZE ====="; '
+                    '| grep -E "^.*boto3/" || true; '
+                    'echo "botocore in ZIP:"; '
+                    "unzip -l /tmp/dependencies.zip "
+                    '| grep -E "^.*botocore/" || true; '
+                    'echo "ZIP SIZE:"; '
                     "ls -lh /tmp/dependencies.zip; "
-                    'echo "===== END BOTOCore DEBUG ====="; '
-                    # Submit Spark job with the Python package.
+                    'echo "===== END DEPENDENCY ZIP CHECK ====="; '
+                    # --------------------------------------------------
+                    # 8. Download src/ from S3
+                    # --------------------------------------------------
+                    "rm -rf /tmp/src; "
+                    "rm -f /tmp/src.zip; "
+                    "cd /tmp; "
+                    f"aws s3 cp "
+                    f"s3://{S3_BUCKET}/dags/src/ "
+                    "/tmp/src/ "
+                    "--recursive; "
+                    # --------------------------------------------------
+                    # 9. Create src.zip
+                    # --------------------------------------------------
+                    "cd /tmp; "
+                    "zip -r /tmp/src.zip src; "
+                    # --------------------------------------------------
+                    # 10. Run Spark transformation
+                    # --------------------------------------------------
                     "spark-submit "
                     "--deploy-mode cluster "
                     "--conf spark.yarn.appMasterEnv.ENV=emr "
                     "--py-files /tmp/src.zip,/tmp/dependencies.zip "
                     f"s3://{S3_BUCKET}/dags/src/transform/transform_job.py "
-                    f"s3a://{S3_BUCKET}/{S3_RAW_PREFIX} "
+                    f"s3a://{S3_BUCKET}/{S3_RAW_PREFIX}"
                 ),
             ],
         },

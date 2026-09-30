@@ -191,46 +191,54 @@ def test_add_transform_step() -> None:
         "-c",
         (
             "set -euo pipefail; "
+            # Download requirements
             f"aws s3 cp "
             f"s3://{S3_BUCKET}/requirements.txt /tmp/requirements.txt; "
+            # Set EMR environment
             "export ENV=emr; "
+            # Create Python dependency directory
             "rm -rf /tmp/python_deps; "
             "mkdir -p /tmp/python_deps; "
+            # Install Python dependencies
             "/usr/bin/python3.11 -m pip install "
             "--target /tmp/python_deps "
             "-r /tmp/requirements.txt; "
+            # Remove boto3 and botocore from dependency ZIP
+            "rm -rf /tmp/python_deps/boto3; "
+            "rm -rf /tmp/python_deps/boto3-*.dist-info; "
+            "rm -rf /tmp/python_deps/botocore; "
+            "rm -rf /tmp/python_deps/botocore-*.dist-info; "
+            # Create dependencies.zip
+            "rm -f /tmp/dependencies.zip; "
+            "cd /tmp/python_deps; "
+            "zip -r /tmp/dependencies.zip .; "
+            # Debug dependency ZIP
+            'echo "===== DEPENDENCY ZIP CHECK ====="; '
+            'echo "boto3 in ZIP:"; '
+            "unzip -l /tmp/dependencies.zip "
+            '| grep -E "^.*boto3/" || true; '
+            'echo "botocore in ZIP:"; '
+            "unzip -l /tmp/dependencies.zip "
+            '| grep -E "^.*botocore/" || true; '
+            'echo "ZIP SIZE:"; '
+            "ls -lh /tmp/dependencies.zip; "
+            'echo "===== END DEPENDENCY ZIP CHECK ====="; '
+            # Download src
+            "rm -rf /tmp/src; "
             "rm -f /tmp/src.zip; "
             "cd /tmp; "
             f"aws s3 cp "
             f"s3://{S3_BUCKET}/dags/src/ /tmp/src/ --recursive; "
+            # Create src.zip
             "cd /tmp; "
             "zip -r /tmp/src.zip src; "
-            "rm -f /tmp/dependencies.zip; "
-            "cd /tmp/python_deps; "
-            "zip -r /tmp/dependencies.zip .; "
-            # Debug botocore package and endpoint metadata.
-            'echo "===== BOTOCore DEBUG ====="; '
-            "python3.11 -c "
-            '"import botocore; '
-            "print('VERSION:', botocore.__version__); "
-            "print('PATH:', botocore.__path__[0])\"; "
-            'echo "===== ENDPOINTS IN PACKAGE ====="; '
-            "find /tmp/python_deps/botocore/data "
-            '-name "endpoints.json" '
-            '-o -name "partitions.json"; '
-            'echo "===== ENDPOINTS IN ZIP ====="; '
-            "unzip -l /tmp/dependencies.zip "
-            "| grep -E "
-            '"botocore/data/(endpoints.json|partitions.json)"; '
-            'echo "===== ZIP SIZE ====="; '
-            "ls -lh /tmp/dependencies.zip; "
-            'echo "===== END BOTOCore DEBUG ====="; '
+            # Submit Spark job
             "spark-submit "
             "--deploy-mode cluster "
             "--conf spark.yarn.appMasterEnv.ENV=emr "
             "--py-files /tmp/src.zip,/tmp/dependencies.zip "
             f"s3://{S3_BUCKET}/dags/src/transform/transform_job.py "
-            f"s3a://{S3_BUCKET}/{S3_RAW_PREFIX} "
+            f"s3a://{S3_BUCKET}/{S3_RAW_PREFIX}"
         ),
     ]
 
