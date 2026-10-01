@@ -24,7 +24,7 @@ class RedshiftStorage:
     # Configuration
     # ------------------------------------------------------------------
 
-    REDSHIFT_CONNECT_TIMEOUT = 60
+    REDSHIFT_CONNECT_TIMEOUT = 300
 
     AWS_CONNECT_TIMEOUT = 10
     AWS_READ_TIMEOUT = 60
