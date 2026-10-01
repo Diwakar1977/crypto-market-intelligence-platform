@@ -145,7 +145,7 @@ def test_connect(
         user="IAMR:crypto-user",
         password="temporary-password",
         ssl=True,
-        timeout=60,
+        timeout=300,
         tcp_keepalive=True,
     )
 
