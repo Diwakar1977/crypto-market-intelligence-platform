@@ -51,7 +51,7 @@ def test_dag_tags() -> None:
 def test_dag_schedule() -> None:
     """DAG must run once every day at 09:00."""
 
-    assert dag_config.DAG_SCHEDULE == "0 9 * * *"
+    assert dag_config.DAG_SCHEDULE == "30 * * * *"
 
 
 # =====================================================================
@@ -63,8 +63,8 @@ def test_dag_start_date() -> None:
     """DAG start date must be September 1, 2026."""
 
     assert dag_config.DAG_START_DATE.year == 2026
-    assert dag_config.DAG_START_DATE.month == 9
-    assert dag_config.DAG_START_DATE.day == 25
+    assert dag_config.DAG_START_DATE.month == 10
+    assert dag_config.DAG_START_DATE.day == 1
 
 
 # =====================================================================

@@ -24,13 +24,13 @@ DAG_TAGS = ["crypto", "etl", "emr", "spark", "redshift"]
 # SCHEDULE
 # ---------------------------------------------------
 
-DAG_SCHEDULE = "0 9 * * *"
+DAG_SCHEDULE = "30 * * * *"
 
 # ---------------------------------------------------
 # START DATE
 # ---------------------------------------------------
 
-DAG_START_DATE = timezone.datetime(2026, 9, 25)
+DAG_START_DATE = timezone.datetime(2026, 10, 1)
 
 # ---------------------------------------------------
 # DAG BEHAVIOUR
