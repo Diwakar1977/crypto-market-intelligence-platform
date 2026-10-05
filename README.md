@@ -35,7 +35,7 @@ The primary objectives of this project include:
 * Deploy the pipeline using secure AWS networking and IAM architecture
 
 # Data Engineering Workflow
-
+```
 **CoinGecko REST API**
 ↓
 **Python API Extraction & Validation**
@@ -55,6 +55,7 @@ The primary objectives of this project include:
 **SQL Analytics**
 ↓
 **Power BI Dashboards**
+```
 
 #  AWS Architecture
 
