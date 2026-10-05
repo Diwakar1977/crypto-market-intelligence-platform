@@ -36,25 +36,25 @@ The primary objectives of this project include:
 
 # Data Engineering Workflow
 ```
-**CoinGecko REST API**
+CoinGecko REST API
 ↓
-**Python API Extraction & Validation**
+Python API Extraction & Validation
 ↓
-**Amazon S3 – Raw Data Layer**
+Amazon S3 – Raw Data Layer
 ↓
-**Apache Airflow / Amazon MWAA**
+Apache Airflow / Amazon MWAA
 ↓
-**Amazon EMR – PySpark Processing**
+Amazon EMR – PySpark Processing
 ↓
-**Data Validation & Feature Engineering**
+Data Validation & Feature Engineering
 ↓
-**Parquet – Processed Data Layer**
+Parquet – Processed Data Layer
 ↓
-**Amazon Redshift Serverless**
+Amazon Redshift Serverless
 ↓
-**SQL Analytics**
+SQL Analytics
 ↓
-**Power BI Dashboards**
+Power BI Dashboards
 ```
 
 #  AWS Architecture
